@@ -12,22 +12,28 @@ if str(_ROOT) not in sys.path:
 
 def main() -> None:
     from PySide6.QtWidgets import QApplication
-    from PySide6.QtCore import Qt
 
     app = QApplication(sys.argv)
     app.setApplicationName("YouTubePromptGen")
     app.setOrganizationName("AIFramePrompt")
     app.setApplicationVersion("1.0.0")
 
+    # Must create AppSettings BEFORE installing translator so we can read language pref
+    from utils.settings import AppSettings
+    settings = AppSettings()
+
+    # Install i18n translator (default zh_TW)
+    from utils.i18n import load_translator
+    lang = settings.get_language()
+    _translator = load_translator(app, lang)  # keep reference alive
+
     # Load stylesheet
     qss_path = _ROOT / "ui" / "styles.qss"
     if qss_path.exists():
         app.setStyleSheet(qss_path.read_text(encoding="utf-8"))
 
-    from utils.settings import AppSettings
     from ui.main_window import MainWindow
 
-    settings = AppSettings()
     window = MainWindow(settings)
     window.show()
 

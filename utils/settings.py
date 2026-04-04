@@ -56,5 +56,13 @@ class AppSettings:
     def set_theme(self, value: str) -> None:
         self._qs.setValue("theme", value)
 
+    # --- Language ---
+    def get_language(self) -> str:
+        return self._qs.value("language", "zh_TW", type=str)
+
+    def set_language(self, value: str) -> None:
+        self._qs.setValue("language", value)
+        self._qs.sync()
+
     def sync(self) -> None:
         self._qs.sync()

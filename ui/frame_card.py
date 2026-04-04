@@ -4,8 +4,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout
+from PySide6.QtGui import QColor, QPixmap
+from PySide6.QtWidgets import QFrame, QGraphicsDropShadowEffect, QLabel, QVBoxLayout
 
 from core.models import FrameResult
 
@@ -13,10 +13,10 @@ from core.models import FrameResult
 class FrameCard(QFrame):
     """Fixed-size card showing a thumbnail, prompt preview, and timestamp."""
 
-    CARD_W = 180
-    CARD_H = 155
-    THUMB_W = 160
-    THUMB_H = 90
+    CARD_W = 200
+    CARD_H = 175
+    THUMB_W = 176
+    THUMB_H = 99
 
     selected = Signal(object)   # FrameResult
 
@@ -28,6 +28,13 @@ class FrameCard(QFrame):
         self.setObjectName("frame_card")
         self.setFixedSize(self.CARD_W, self.CARD_H)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        # Drop shadow
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(14)
+        shadow.setOffset(0, 3)
+        shadow.setColor(QColor(0, 0, 0, 120))
+        self.setGraphicsEffect(shadow)
 
         self._setup_ui()
         self._update_selection_style()
@@ -64,7 +71,7 @@ class FrameCard(QFrame):
 
         # Timestamp
         self._ts_label = QLabel(self._result.timestamp_label)
-        self._ts_label.setStyleSheet("font-size: 10px; color: #7f849c;")
+        self._ts_label.setStyleSheet("font-size: 10px; color: #89b4fa; font-weight: 600; letter-spacing: 0.3px;")
         self._ts_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom)
         layout.addWidget(self._ts_label)
 

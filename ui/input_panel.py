@@ -12,11 +12,14 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QSpinBox,
     QVBoxLayout,
     QWidget,
 )
+
+from utils.i18n import SUPPORTED_LANGUAGES
 
 from core.models import JobConfig
 from utils.settings import AppSettings
@@ -91,6 +94,13 @@ class InputPanel(QWidget):
         dir_row.addWidget(self._browse_btn)
         form.addRow(self.tr("Output Dir"), dir_row)
 
+        # Language selector
+        self._lang_combo = QComboBox()
+        for code, label in SUPPORTED_LANGUAGES.items():
+            self._lang_combo.addItem(label, code)
+        self._lang_combo.setToolTip(self.tr("Restart the app to apply language change"))
+        form.addRow(self.tr("Language"), self._lang_combo)
+
         root.addWidget(group)
 
         # Buttons row
@@ -127,6 +137,10 @@ class InputPanel(QWidget):
         idx = self._prompt_combo.findData(s.get_prompt_type())
         if idx >= 0:
             self._prompt_combo.setCurrentIndex(idx)
+        # language
+        lang_idx = self._lang_combo.findData(s.get_language())
+        if lang_idx >= 0:
+            self._lang_combo.setCurrentIndex(lang_idx)
 
     def _connect_signals(self) -> None:
         self._url_edit.textChanged.connect(self._validate)
@@ -137,6 +151,7 @@ class InputPanel(QWidget):
         self._prompt_combo.currentIndexChanged.connect(
             lambda _: self._settings.set_prompt_type(self._prompt_combo.currentData())
         )
+        self._lang_combo.currentIndexChanged.connect(self._on_language_changed)
         self._btn_start.clicked.connect(self._on_start)
         self._btn_stop.clicked.connect(self._request_stop)
         self._browse_btn.clicked.connect(self._browse_output)
@@ -180,6 +195,15 @@ class InputPanel(QWidget):
         )
         self._settings.sync()
         self.job_requested.emit(config)
+
+    def _on_language_changed(self) -> None:
+        code: str = self._lang_combo.currentData()
+        self._settings.set_language(code)
+        QMessageBox.information(
+            self,
+            self.tr("Language"),
+            self.tr("Restart the app to apply the language change."),
+        )
 
     def _request_stop(self) -> None:
         self._btn_stop.setEnabled(False)
