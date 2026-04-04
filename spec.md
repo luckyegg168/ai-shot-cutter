@@ -377,3 +377,44 @@ pytest-cov>=5.0.0
 **External binaries required:**
 - `ffmpeg` and `ffprobe` — must be on system PATH
 - Recommended install: `winget install ffmpeg` (Windows) or `brew install ffmpeg` (macOS)
+
+---
+
+## 12. v1.1 Improvements (Bug fixes + UX features)
+
+### 12.1 Bug Fixes Applied
+| # | Root Cause | Fix |
+|---|-----------|-----|
+| B-01 | `QWidget { background-color: transparent }` in QSS caused QFormLayout rows to be invisible on Windows+PySide6 | Changed to `#1e1e2e`; only `QLabel/QCheckBox/QRadioButton` stay transparent |
+| B-02 | `outer_splitter.setSizes([160, 480, 200])` gave the input panel only 160 px for 7+ form rows | Changed to `[330, 350, 120]` |
+| B-03 | `QFormLayout` lacked `setVerticalSpacing()` — rows had no separation | Added `setVerticalSpacing(10)` + `setContentsMargins(14, 12, 14, 12)` |
+
+### 12.2 New Features
+
+#### Feature 1 — API Key Eye Toggle
+- `_eye_btn` QPushButton (`#eye_btn`) placed beside `_api_edit` in a `QHBoxLayout`
+- Toggles `QLineEdit.EchoMode.Password` ↔ `Normal`
+- Icons: `👁` (hidden) / `🙈` (shown)
+
+#### Feature 2 — Keyboard Shortcuts
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+Enter` | Start job |
+| `Esc` | Stop job |
+| `Ctrl+Shift+C` | Copy prompt |
+
+Implemented via `QShortcut` + `QKeySequence` in `MainWindow._setup_shortcuts()`.
+
+#### Feature 3 — Drag & Drop URL
+- `InputPanel` accepts drops containing URLs or plain text
+- `dragEnterEvent` accepts `hasUrls()` or `hasText()`
+- `dropEvent` extracts the first URL and populates `_url_edit`
+- Auto-expands the form panel if collapsed
+
+#### Feature 4 — Live Frame Counter in Status Bar
+- `_on_progress(current, total, message)` now displays `影格 X/Y · <message>` when `total > 0`
+
+#### Feature 5 — Collapsible Input Panel
+- `_collapse_btn` QPushButton (`#collapse_toggle`) above the form group
+- Toggles `_form_widget.setVisible()` on click
+- Arrow indicator: `▼` (expanded) / `▶` (collapsed)

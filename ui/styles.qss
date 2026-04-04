@@ -9,11 +9,60 @@ QMainWindow, QDialog {
     color: #cdd6f4;
 }
 
+/* NOTE: Do NOT set background-color: transparent on QWidget —
+   it forces autoFillBackground on Windows/PySide6 and breaks
+   QFormLayout row rendering (fields become invisible/clipped).
+   Instead give all widgets the default surface color and
+   override individual elements below. */
 QWidget {
-    background-color: transparent;
+    background-color: #1e1e2e;
     color: #cdd6f4;
     font-family: "Segoe UI", "SF Pro Display", "Inter", "Noto Sans TC", sans-serif;
     font-size: 13px;
+}
+
+/* Labels / check-boxes must stay transparent so the group-box
+   background shows through */
+QLabel, QCheckBox, QRadioButton {
+    background-color: transparent;
+}
+
+/* Scroll-area container inner widget */
+QScrollArea > QWidget > QWidget {
+    background-color: #181825;
+}
+
+/* Collapse toggle strip */
+QPushButton#collapse_toggle {
+    background-color: #181825;
+    border: none;
+    border-bottom: 1px solid #313244;
+    border-radius: 0;
+    text-align: left;
+    padding: 4px 12px;
+    font-size: 11px;
+    color: #7f849c;
+    min-height: 22px;
+}
+QPushButton#collapse_toggle:hover {
+    color: #89b4fa;
+    background-color: #1e1e2e;
+}
+
+/* Eye (show/hide) button for API key */
+QPushButton#eye_btn {
+    background-color: #313244;
+    border: 1px solid #45475a;
+    border-left: none;
+    border-radius: 0 6px 6px 0;
+    padding: 0 8px;
+    color: #7f849c;
+    min-height: 28px;
+    font-size: 14px;
+}
+QPushButton#eye_btn:hover {
+    background-color: #45475a;
+    color: #cdd6f4;
 }
 
 /* ── Menu Bar ────────────────────────────────── */

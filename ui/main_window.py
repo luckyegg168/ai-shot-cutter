@@ -6,9 +6,11 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QThread
+from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
+    QShortcut,
     QSplitter,
     QStatusBar,
     QWidget,
@@ -36,6 +38,7 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(1200, 700)
         self._setup_ui()
         self._setup_menu()
+        self._setup_shortcuts()
 
     # ------------------------------------------------------------------
     # UI construction
@@ -73,7 +76,7 @@ class MainWindow(QMainWindow):
         outer_splitter.setStretchFactor(0, 0)
         outer_splitter.setStretchFactor(1, 1)
         outer_splitter.setStretchFactor(2, 0)
-        outer_splitter.setSizes([160, 480, 200])
+        outer_splitter.setSizes([330, 350, 120])  # input | gallery+prompt | log
 
         root_layout.addWidget(outer_splitter)
 
@@ -86,6 +89,12 @@ class MainWindow(QMainWindow):
         self._input_panel.stop_button.clicked.connect(self._on_stop_requested)
         self._gallery.card_selected.connect(self._prompt_panel.show_frame)
         self._prompt_panel.regenerate_requested.connect(self._on_regenerate)
+
+    # Feature 2: keyboard shortcuts
+    def _setup_shortcuts(self) -> None:
+        QShortcut(QKeySequence("Ctrl+Return"), self, self._input_panel.start_button.click)
+        QShortcut(QKeySequence("Escape"), self, self._input_panel.stop_button.click)
+        QShortcut(QKeySequence("Ctrl+Shift+C"), self, self._prompt_panel._copy_btn.click)
 
     def _setup_menu(self) -> None:
         menubar = self.menuBar()
@@ -130,7 +139,11 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     def _on_progress(self, current: int, total: int, message: str) -> None:
         self._log_panel.set_progress(current, total, message)
-        self.statusBar().showMessage(message)
+        # Feature 4: live frame counter in status bar
+        if total > 0:
+            self.statusBar().showMessage(f"影格 {current}/{total}  ·  {message}")
+        else:
+            self.statusBar().showMessage(message)
 
     def _on_frame_ready(self, frame: FrameResult) -> None:
         self._gallery.add_frame_card(frame)

@@ -1,9 +1,18 @@
-"""InputPanel — URL, interval, API key, prompt type, start/stop controls."""
+"""InputPanel — URL, interval, API key, prompt type, start/stop controls.
+
+Improvements v2:
+  1. API key show/hide eye toggle
+  2. Keyboard shortcuts (Ctrl+Enter = Start, Esc = Stop) — wired via MainWindow
+  3. Drag & drop URL support
+  4. Live frame counter in status bar — relayed via progress signal in MainWindow
+  5. Collapsible form panel
+"""
 from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
@@ -19,42 +28,64 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from utils.i18n import SUPPORTED_LANGUAGES
-
 from core.models import JobConfig
+from utils.i18n import SUPPORTED_LANGUAGES
 from utils.settings import AppSettings
 
 
 class InputPanel(QWidget):
     """Top panel containing all job configuration inputs."""
 
-    job_requested = Signal(object)   # JobConfig
+    job_requested = Signal(object)  # JobConfig
 
     def __init__(self, settings: AppSettings, parent=None) -> None:
         super().__init__(parent)
         self._settings = settings
         self._running = False
+        self._form_collapsed = False
         self._setup_ui()
         self._load_settings()
         self._connect_signals()
         self._validate()
+        # Feature 3: accept URL drag & drop
+        self.setAcceptDrops(True)
+
+    # ------------------------------------------------------------------
+    # Public properties (used by MainWindow for shortcuts)
+    # ------------------------------------------------------------------
+    @property
+    def stop_button(self) -> QPushButton:
+        return self._btn_stop
+
+    @property
+    def start_button(self) -> QPushButton:
+        return self._btn_start
 
     # ------------------------------------------------------------------
     # UI construction
     # ------------------------------------------------------------------
     def _setup_ui(self) -> None:
         root = QVBoxLayout(self)
-        root.setContentsMargins(8, 8, 8, 8)
-        root.setSpacing(6)
+        root.setContentsMargins(8, 4, 8, 6)
+        root.setSpacing(4)
 
-        group = QGroupBox(self.tr("Job Configuration"))
-        form = QFormLayout(group)
-        form.setHorizontalSpacing(12)
+        # ── Feature 5: Collapse / expand toggle bar ──────────────────
+        self._collapse_btn = QPushButton("▼  " + self.tr("Job Configuration"))
+        self._collapse_btn.setObjectName("collapse_toggle")
+        self._collapse_btn.setFlat(True)
+        root.addWidget(self._collapse_btn)
+
+        # ── Form container (hidden when collapsed) ───────────────────
+        self._form_widget = QGroupBox()
+        form = QFormLayout(self._form_widget)
+        form.setHorizontalSpacing(16)
+        form.setVerticalSpacing(10)
+        form.setContentsMargins(14, 12, 14, 12)
 
         # URL
         self._url_edit = QLineEdit()
         self._url_edit.setPlaceholderText("https://www.youtube.com/watch?v=…")
-        self._url_edit.setToolTip(self.tr("YouTube video URL"))
+        self._url_edit.setToolTip(self.tr("YouTube video URL · or drag-drop a URL here"))
         form.addRow(self.tr("YouTube URL"), self._url_edit)
 
         # Interval
@@ -64,12 +95,22 @@ class InputPanel(QWidget):
         self._interval_spin.setToolTip(self.tr("Time between captured frames (seconds)"))
         form.addRow(self.tr("Interval (sec)"), self._interval_spin)
 
-        # API key
+        # Feature 1: API key + eye toggle ────────────────────────────
+        api_row = QHBoxLayout()
+        api_row.setSpacing(0)
         self._api_edit = QLineEdit()
         self._api_edit.setEchoMode(QLineEdit.EchoMode.Password)
         self._api_edit.setPlaceholderText("sk-…")
-        self._api_edit.setToolTip(self.tr("OpenAI API Key (stored locally in QSettings)"))
-        form.addRow(self.tr("OpenAI API Key"), self._api_edit)
+        self._api_edit.setToolTip(self.tr("OpenAI API Key (stored locally)"))
+        self._api_edit.setStyleSheet("border-radius: 6px 0 0 6px;")
+        self._eye_btn = QPushButton("👁")
+        self._eye_btn.setObjectName("eye_btn")
+        self._eye_btn.setCheckable(True)
+        self._eye_btn.setToolTip(self.tr("Show / hide API key"))
+        self._eye_btn.setFixedWidth(36)
+        api_row.addWidget(self._api_edit)
+        api_row.addWidget(self._eye_btn)
+        form.addRow(self.tr("OpenAI API Key"), api_row)
 
         # Prompt type
         self._prompt_combo = QComboBox()
@@ -101,18 +142,20 @@ class InputPanel(QWidget):
         self._lang_combo.setToolTip(self.tr("Restart the app to apply language change"))
         form.addRow(self.tr("Language"), self._lang_combo)
 
-        root.addWidget(group)
+        root.addWidget(self._form_widget)
 
-        # Buttons row
+        # ── Buttons row ──────────────────────────────────────────────
         btn_row = QHBoxLayout()
         btn_row.setSpacing(8)
 
         self._btn_start = QPushButton(self.tr("Start"))
         self._btn_start.setObjectName("btn_start")
+        self._btn_start.setToolTip("Ctrl+Enter")
 
         self._btn_stop = QPushButton(self.tr("Stop"))
         self._btn_stop.setObjectName("btn_stop")
         self._btn_stop.setEnabled(False)
+        self._btn_stop.setToolTip("Esc")
 
         self._btn_open = QPushButton(self.tr("Open Output"))
 
@@ -124,7 +167,8 @@ class InputPanel(QWidget):
 
         # Validation message
         self._error_label = QLabel()
-        self._error_label.setStyleSheet("color: #f38ba8; font-size: 11px;")
+        self._error_label.setStyleSheet("color: #f38ba8; font-size: 11px; background: transparent;")
+        self._error_label.setContentsMargins(4, 0, 0, 0)
         root.addWidget(self._error_label)
 
     def _load_settings(self) -> None:
@@ -133,11 +177,9 @@ class InputPanel(QWidget):
         self._interval_spin.setValue(s.get_interval())
         self._output_edit.setText(str(s.get_output_dir()))
         self._max_frames_spin.setValue(s.get_max_frames())
-        # prompt type
         idx = self._prompt_combo.findData(s.get_prompt_type())
         if idx >= 0:
             self._prompt_combo.setCurrentIndex(idx)
-        # language
         lang_idx = self._lang_combo.findData(s.get_language())
         if lang_idx >= 0:
             self._lang_combo.setCurrentIndex(lang_idx)
@@ -156,6 +198,10 @@ class InputPanel(QWidget):
         self._btn_stop.clicked.connect(self._request_stop)
         self._browse_btn.clicked.connect(self._browse_output)
         self._btn_open.clicked.connect(self._open_output)
+        # Feature 1: eye toggle
+        self._eye_btn.toggled.connect(self._toggle_api_visibility)
+        # Feature 5: collapse toggle
+        self._collapse_btn.clicked.connect(self._toggle_collapse)
 
     # ------------------------------------------------------------------
     # Validation
@@ -180,6 +226,58 @@ class InputPanel(QWidget):
         else:
             self._error_label.clear()
             self._btn_start.setEnabled(not self._running)
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+    def set_running(self, running: bool) -> None:
+        self._running = running
+        self._btn_start.setEnabled(not running)
+        self._btn_stop.setEnabled(running)
+
+    # ------------------------------------------------------------------
+    # Feature 1: API Key show/hide
+    # ------------------------------------------------------------------
+    def _toggle_api_visibility(self, checked: bool) -> None:
+        mode = QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
+        self._api_edit.setEchoMode(mode)
+        self._eye_btn.setText("🙈" if checked else "👁")
+
+    # ------------------------------------------------------------------
+    # Feature 5: Collapse / expand
+    # ------------------------------------------------------------------
+    def _toggle_collapse(self) -> None:
+        self._form_collapsed = not self._form_collapsed
+        self._form_widget.setVisible(not self._form_collapsed)
+        arrow = "▶" if self._form_collapsed else "▼"
+        self._collapse_btn.setText(f"{arrow}  " + self.tr("Job Configuration"))
+
+    # ------------------------------------------------------------------
+    # Feature 3: Drag & drop URL
+    # ------------------------------------------------------------------
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:  # noqa: N802
+        mime = event.mimeData()
+        if mime.hasText() or mime.hasUrls():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event: QDropEvent) -> None:  # noqa: N802
+        mime = event.mimeData()
+        text = ""
+        if mime.hasUrls():
+            text = mime.urls()[0].toString()
+        elif mime.hasText():
+            text = mime.text().strip()
+
+        if text.startswith("http"):
+            self._url_edit.setText(text)
+            # auto-expand if collapsed
+            if self._form_collapsed:
+                self._toggle_collapse()
+            event.acceptProposedAction()
+        else:
+            event.ignore()
 
     # ------------------------------------------------------------------
     # Slots
@@ -217,7 +315,8 @@ class InputPanel(QWidget):
             self._settings.set_output_dir(Path(folder))
 
     def _open_output(self) -> None:
-        import subprocess, sys
+        import subprocess
+        import sys
 
         path = self._output_edit.text()
         if path:
@@ -227,18 +326,3 @@ class InputPanel(QWidget):
                 subprocess.Popen(["open", path])
             else:
                 subprocess.Popen(["xdg-open", path])
-
-    # ------------------------------------------------------------------
-    # External state setters (called by MainWindow)
-    # ------------------------------------------------------------------
-    def set_running(self, running: bool) -> None:
-        self._running = running
-        self._btn_stop.setEnabled(running)
-        if running:
-            self._btn_start.setEnabled(False)
-        else:
-            self._validate()
-
-    @property
-    def stop_button(self) -> QPushButton:
-        return self._btn_stop

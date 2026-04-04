@@ -245,3 +245,19 @@ output/
 | GPT-4o rate limits | Medium | Add retry with backoff; expose delay setting |
 | Large video (>1GB) fills disk | Low | Estimate size before download; warn user |
 | Qt version incompatibility | Low | Pin `PySide6>=6.6` in requirements |
+
+---
+
+## Phase 3 — v1.1 Fixes & Features (Completed)
+
+### Bug Fixes
+- [x] **B-01** `styles.qss`: Replace `QWidget { background-color: transparent }` with `#1e1e2e`; transparent override on QLabel/QCheckBox/QRadioButton only
+- [x] **B-02** `main_window.py`: Change `setSizes([160, 480, 200])` → `[330, 350, 120]`
+- [x] **B-03** `input_panel.py`: Add `setVerticalSpacing(10)` + `setContentsMargins(14, 12, 14, 12)` to QFormLayout
+
+### New Features
+- [x] **F-01** API key eye toggle — `_eye_btn` QPushButton beside `_api_edit`
+- [x] **F-02** Keyboard shortcuts — Ctrl+Enter / Esc / Ctrl+Shift+C via `MainWindow._setup_shortcuts()`
+- [x] **F-03** Drag & drop URL — `dragEnterEvent` + `dropEvent` on `InputPanel`
+- [x] **F-04** Live frame counter in status bar — `影格 X/Y · <message>` in `_on_progress`
+- [x] **F-05** Collapsible input panel — `_collapse_btn` toggle above form group
