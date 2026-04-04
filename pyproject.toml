@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "ai-shot-cutter"
+version = "1.0.0"
+description = "YouTube AI Frame Prompt Generator"
+requires-python = ">=3.11"
+dependencies = [
+    "PySide6>=6.6.0",
+    "yt-dlp>=2024.1.0",
+    "openai>=1.30.0",
+    "tqdm>=4.66.0",
+]
+
+[project.scripts]
+ai-shot-cutter = "main:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=core --cov-report=term-missing"

@@ -1,0 +1,247 @@
+# YouTube AI Frame Prompt Generator — Implementation Plan
+
+## Project Overview
+
+A pure desktop GUI application (PySide6/Qt6) that:
+1. Accepts a YouTube URL and extraction interval
+2. Downloads the video via yt-dlp
+3. Extracts frames every N seconds via ffmpeg
+4. Sends each frame to GPT-4o Vision to generate high-quality text-to-image / text-to-video prompts
+5. Displays real-time progress, frame gallery, and structured output
+
+---
+
+## Phase 0: Environment & Scaffold (Day 1)
+
+### Goals
+- Set up project structure
+- Verify all dependencies installable
+
+### Tasks
+- [ ] Create directory structure (see spec.md)
+- [ ] Create `requirements.txt`
+- [ ] Create `pyproject.toml` (optional, for packaging)
+- [ ] Verify: `pip install PySide6 yt-dlp openai tqdm`
+- [ ] Verify: `ffmpeg` available on PATH
+- [ ] Write a smoke-test script that imports all modules
+
+### Dependencies
+```
+PySide6>=6.6.0
+yt-dlp>=2024.1.0
+openai>=1.0.0
+tqdm>=4.66.0
+```
+
+---
+
+## Phase 1: Core Business Logic (Day 1–2)
+
+### Goals
+- Backend logic fully working and testable without GUI
+
+### Modules to build
+| Module | Responsibility |
+|--------|---------------|
+| `core/downloader.py` | Wrap yt-dlp; download video to temp dir |
+| `core/extractor.py` | Wrap ffmpeg; extract frames at interval |
+| `core/vision.py` | Call GPT-4o Vision; return prompt string |
+| `core/pipeline.py` | Orchestrate download → extract → vision loop |
+| `core/models.py` | Dataclasses: `FrameResult`, `JobConfig`, `JobResult` |
+
+### Key interfaces (pseudo-code)
+```python
+# downloader.py
+def download_video(url: str, output_dir: Path, progress_cb: Callable) -> Path: ...
+
+# extractor.py
+def extract_frames(video_path: Path, interval_sec: int, output_dir: Path) -> list[Path]: ...
+
+# vision.py
+def analyze_frame(image_path: Path, api_key: str, prompt_type: str) -> str: ...
+
+# pipeline.py
+class Pipeline:
+    def run(self, config: JobConfig, on_progress: Callable, on_frame_done: Callable) -> JobResult: ...
+```
+
+### Acceptance criteria
+- `download_video` returns a `.mp4` Path or raises `DownloadError`
+- `extract_frames` returns sorted list of `frame_0001.jpg`, `frame_0002.jpg`, ...
+- `analyze_frame` returns non-empty string prompt
+- Unit tests pass with mocked yt-dlp / ffmpeg / openai
+
+---
+
+## Phase 2: Worker Thread (Day 2)
+
+### Goals
+- Wrap pipeline in `QThread` so GUI stays responsive
+
+### Modules
+| Module | Responsibility |
+|--------|---------------|
+| `workers/pipeline_worker.py` | `QThread` subclass wrapping `Pipeline.run` |
+
+### Signals emitted by `PipelineWorker`
+```python
+progress_updated = Signal(int, int, str)   # current, total, message
+frame_ready = Signal(str, str)             # image_path, prompt_text
+job_finished = Signal(dict)               # full JobResult as dict
+error_occurred = Signal(str)              # error message
+```
+
+### Acceptance criteria
+- Worker can be started and cancelled
+- All signals fire correctly under mocked pipeline
+- No GUI freeze during long operations
+
+---
+
+## Phase 3: GUI — Main Window (Day 3)
+
+### Goals
+- Build the main application window with all panels
+
+### Layout (3-panel)
+```
+┌────────────────────────────────────────────┐
+│  [Input Panel]                              │
+│  URL: ___________  Interval: __  API: ___  │
+│  [Start]  [Stop]  [Open Output]            │
+├──────────────────┬─────────────────────────┤
+│  [Gallery Panel] │  [Prompt Panel]          │
+│  Thumbnail grid  │  Selected frame prompt   │
+│  (scrollable)    │  [Copy]  [Export JSON]   │
+├────────────────────────────────────────────┤
+│  [Log / Progress Panel]                     │
+│  Progress bar  |  Log textarea              │
+└────────────────────────────────────────────┘
+```
+
+### Widgets
+| Widget | Class | File |
+|--------|-------|------|
+| Input panel | `InputPanel(QWidget)` | `ui/input_panel.py` |
+| Gallery | `GalleryWidget(QScrollArea)` | `ui/gallery_widget.py` |
+| Prompt viewer | `PromptPanel(QWidget)` | `ui/prompt_panel.py` |
+| Log area | `LogPanel(QWidget)` | `ui/log_panel.py` |
+| Main window | `MainWindow(QMainWindow)` | `ui/main_window.py` |
+| Gallery card | `FrameCard(QFrame)` | `ui/frame_card.py` |
+
+### Acceptance criteria
+- Window launches without errors
+- Input validation: URL non-empty, interval 1–300, API key non-empty
+- Start button disabled while job running
+- Stop button cancels worker and cleans up
+
+---
+
+## Phase 4: Gallery & Frame Card (Day 3–4)
+
+### Goals
+- Thumbnails appear in real-time as frames are processed
+
+### FrameCard behavior
+- Shows 160×90px thumbnail
+- Shows first 80 chars of prompt below
+- Clicking selects it → shows full prompt in PromptPanel
+- Selected card has highlighted border
+
+### GalleryWidget behavior
+- Uses `QFlowLayout` (or `QGridLayout`) in a `QScrollArea`
+- Auto-scrolls to newest card
+- Cards added via `add_frame(image_path, prompt)` slot
+
+### Acceptance criteria
+- 20 cards render without lag
+- Selecting a card updates PromptPanel immediately
+- Gallery scrolls to newest card on add
+
+---
+
+## Phase 5: Output & Export (Day 4)
+
+### Goals
+- Save results to structured folder on disk
+
+### Output folder structure
+```
+output/
+  <video_id>_<timestamp>/
+    frames/
+      frame_0001.jpg
+      frame_0002.jpg
+      ...
+    prompts/
+      frame_0001.txt
+      frame_0002.txt
+      ...
+    results.json
+    summary.md
+```
+
+### `results.json` schema
+```json
+{
+  "video_url": "...",
+  "video_title": "...",
+  "extracted_at": "ISO8601",
+  "interval_seconds": 5,
+  "frames": [
+    {
+      "index": 1,
+      "timestamp_sec": 0,
+      "image_file": "frames/frame_0001.jpg",
+      "prompt": "..."
+    }
+  ]
+}
+```
+
+### Acceptance criteria
+- Output folder created automatically
+- `results.json` valid JSON, matches schema
+- "Open Output" button opens folder in OS file explorer
+- "Export JSON" button saves filtered results
+
+---
+
+## Phase 6: Polish & Error Handling (Day 5)
+
+### Goals
+- Robust error handling, settings persistence, UX polish
+
+### Tasks
+- [ ] Settings persistence via `QSettings` (API key, last interval, output dir)
+- [ ] Error dialogs for: invalid URL, ffmpeg not found, API quota exceeded
+- [ ] Graceful cancellation (stop download mid-way, clean temp files)
+- [ ] Dark/light theme toggle (Qt stylesheet)
+- [ ] App icon + window title
+- [ ] About dialog
+
+---
+
+## Phase 7: Testing (Day 5–6)
+
+### Test strategy
+- Unit: core modules with mocked subprocesses and API
+- Integration: pipeline end-to-end with a small real video (< 30s)
+- GUI: smoke tests via `pytest-qt`
+
+### Acceptance criteria (overall)
+- 80%+ coverage on `core/` modules
+- All happy-path and error-path tests pass
+- No crashes on Cancel mid-operation
+
+---
+
+## Risk Register
+
+| Risk | Likelihood | Mitigation |
+|------|-----------|------------|
+| yt-dlp blocked by YouTube | Medium | Retry with cookies; document workaround |
+| ffmpeg not on PATH (Windows) | Medium | Bundle ffmpeg or prompt user to install |
+| GPT-4o rate limits | Medium | Add retry with backoff; expose delay setting |
+| Large video (>1GB) fills disk | Low | Estimate size before download; warn user |
+| Qt version incompatibility | Low | Pin `PySide6>=6.6` in requirements |
