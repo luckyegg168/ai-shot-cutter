@@ -142,12 +142,12 @@ def test_pipeline_max_frames_limit(
         url="https://youtube.com/watch?v=test",
         interval_sec=5,
         api_key="sk-test",
-        output_dir=tmp_path / "output",
+        output_dir=tmp_path,
         prompt_type="image",
         max_frames=2,
     )
 
-    out_dir = tmp_path / "out2"
+    out_dir = tmp_path / "vid_20260101_120000"
     out_dir.mkdir(parents=True)
     frames_dir = out_dir / "frames"
     mock_create_dir.return_value = out_dir

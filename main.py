@@ -27,8 +27,14 @@ def main() -> None:
     lang = settings.get_language()
     _translator = load_translator(app, lang)  # keep reference alive
 
-    # Load stylesheet
-    qss_path = _ROOT / "ui" / "styles.qss"
+    # Load stylesheet based on theme preference
+    theme = settings.get_theme()
+    if theme == "light":
+        qss_path = _ROOT / "ui" / "styles_light.qss"
+        if not qss_path.exists():
+            qss_path = _ROOT / "ui" / "styles.qss"
+    else:
+        qss_path = _ROOT / "ui" / "styles.qss"
     if qss_path.exists():
         app.setStyleSheet(qss_path.read_text(encoding="utf-8"))
 

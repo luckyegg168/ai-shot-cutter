@@ -19,4 +19,4 @@ ai-shot-cutter = "main:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=core --cov-report=term-missing"
+addopts = "-v"

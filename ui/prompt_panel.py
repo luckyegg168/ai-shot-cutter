@@ -1,13 +1,17 @@
-"""PromptPanel — shows full prompt text for a selected frame."""
+"""PromptPanel — shows full prompt text for a selected frame + batch actions."""
 from __future__ import annotations
+
+from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QApplication,
+    QFileDialog,
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
     QTextEdit,
     QVBoxLayout,
@@ -25,14 +29,20 @@ class PromptPanel(QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._current_result: FrameResult | None = None
+        self._all_frames_getter = None  # callable returning list[FrameResult]
         self._setup_ui()
+
+    def set_all_frames_getter(self, getter) -> None:
+        """Register a callable that returns all FrameResult objects."""
+        self._all_frames_getter = getter
 
     def _setup_ui(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setContentsMargins(10, 10, 10, 10)
 
         group = QGroupBox(self.tr("Selected Frame"))
         inner = QVBoxLayout(group)
+        inner.setSpacing(10)
 
         # Header
         self._header_label = QLabel(self.tr("No frame selected"))
@@ -44,17 +54,20 @@ class PromptPanel(QWidget):
         self._image_label = QLabel()
         self._image_label.setFixedSize(400, 225)
         self._image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._image_label.setStyleSheet("background-color: #181825; border-radius: 4px;")
+        self._image_label.setStyleSheet("background-color: #181825; border-radius: 6px;")
         inner.addWidget(self._image_label, alignment=Qt.AlignmentFlag.AlignHCenter)
+
+        inner.addSpacing(4)
 
         # Prompt text
         self._prompt_edit = QTextEdit()
         self._prompt_edit.setReadOnly(True)
-        self._prompt_edit.setPlaceholderText(self.tr("Select a frame from the gallery…"))
+        self._prompt_edit.setPlaceholderText(self.tr("Select a frame from the gallery..."))
         inner.addWidget(self._prompt_edit)
 
-        # Buttons
+        # Single-frame buttons
         btn_row = QHBoxLayout()
+        btn_row.setSpacing(8)
         self._copy_btn = QPushButton(self.tr("Copy Prompt"))
         self._regen_btn = QPushButton(self.tr("Regenerate"))
         self._copy_btn.setEnabled(False)
@@ -64,11 +77,27 @@ class PromptPanel(QWidget):
         btn_row.addStretch()
         inner.addLayout(btn_row)
 
+        inner.addSpacing(8)
+
+        # ── Batch action buttons (Feature 1 & 2) ────────────────────
+        batch_row = QHBoxLayout()
+        batch_row.setSpacing(8)
+        self._copy_all_btn = QPushButton(self.tr("Copy All Prompts"))
+        self._copy_all_btn.setToolTip(self.tr("Copy all frame prompts to clipboard"))
+        self._export_btn = QPushButton(self.tr("Export Prompts (.txt)"))
+        self._export_btn.setToolTip(self.tr("Export all prompts to a .txt file"))
+        batch_row.addWidget(self._copy_all_btn)
+        batch_row.addWidget(self._export_btn)
+        batch_row.addStretch()
+        inner.addLayout(batch_row)
+
         layout.addWidget(group)
 
         # Connections
         self._copy_btn.clicked.connect(self._copy_prompt)
         self._regen_btn.clicked.connect(self._request_regen)
+        self._copy_all_btn.clicked.connect(self._copy_all_prompts)
+        self._export_btn.clicked.connect(self._export_all_prompts)
 
     # ------------------------------------------------------------------
     def show_frame(self, result: FrameResult) -> None:
@@ -110,3 +139,58 @@ class PromptPanel(QWidget):
     def _request_regen(self) -> None:
         if self._current_result:
             self.regenerate_requested.emit(self._current_result)
+
+    # ------------------------------------------------------------------
+    # Feature 1: Copy All Prompts
+    # ------------------------------------------------------------------
+    def _copy_all_prompts(self) -> None:
+        frames = self._get_all_frames()
+        if not frames:
+            return
+        text = self._build_prompts_text(frames)
+        QApplication.clipboard().setText(text)
+        QMessageBox.information(
+            self,
+            self.tr("Copied"),
+            self.tr(f"Copied {len(frames)} prompts to clipboard."),
+        )
+
+    # ------------------------------------------------------------------
+    # Feature 2: Export All Prompts
+    # ------------------------------------------------------------------
+    def _export_all_prompts(self) -> None:
+        frames = self._get_all_frames()
+        if not frames:
+            return
+
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            self.tr("Export All Prompts"),
+            "all_prompts.txt",
+            "Text Files (*.txt)",
+        )
+        if not path:
+            return
+
+        text = self._build_prompts_text(frames)
+        Path(path).write_text(text, encoding="utf-8")
+        QMessageBox.information(
+            self,
+            self.tr("Export Complete"),
+            self.tr(f"Exported {len(frames)} prompts to:\n{path}"),
+        )
+
+    # ------------------------------------------------------------------
+    def _get_all_frames(self) -> list[FrameResult]:
+        if self._all_frames_getter:
+            return self._all_frames_getter()
+        return []
+
+    @staticmethod
+    def _build_prompts_text(frames: list[FrameResult]) -> str:
+        parts: list[str] = []
+        for f in frames:
+            parts.append(f"--- Frame {f.index} | {f.timestamp_label} ---")
+            parts.append(f.prompt)
+            parts.append("")
+        return "\n".join(parts)

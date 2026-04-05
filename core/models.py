@@ -13,6 +13,7 @@ class JobConfig:
     output_dir: Path
     prompt_type: str           # "image" | "video"
     max_frames: int = 0        # 0 = unlimited
+    resolution: str = "1080"   # "720" | "1080" | "best"
 
 
 @dataclass(frozen=True)

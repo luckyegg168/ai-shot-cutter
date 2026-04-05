@@ -26,8 +26,8 @@ class LogPanel(QWidget):
 
     def _setup_ui(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 4, 8, 8)
-        layout.setSpacing(4)
+        layout.setContentsMargins(10, 6, 10, 10)
+        layout.setSpacing(6)
 
         group = QGroupBox(self.tr("Progress & Log"))
         inner = QVBoxLayout(group)
@@ -46,7 +46,7 @@ class LogPanel(QWidget):
         # Log text area
         self._log_edit = QTextEdit()
         self._log_edit.setReadOnly(True)
-        self._log_edit.setMaximumHeight(140)
+        self._log_edit.setMaximumHeight(180)
         inner.addWidget(self._log_edit)
 
         # Clear button

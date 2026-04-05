@@ -20,6 +20,7 @@ def download_video(
     url: str,
     output_dir: Path,
     progress_cb: Callable[[int, str, str], None] | None = None,
+    resolution: str = "1080",
 ) -> Path:
     """Download a YouTube video using yt-dlp.
 
@@ -27,6 +28,7 @@ def download_video(
         url: YouTube video URL.
         output_dir: Directory to save the video.
         progress_cb: Optional callback(percent, speed, eta).
+        resolution: Max video height ("720", "1080", or "best").
 
     Returns:
         Path to the downloaded .mp4 file.
@@ -34,12 +36,12 @@ def download_video(
     Raises:
         DownloadError: On any yt-dlp failure.
     """
+    url = _sanitize_url(url)
+
     try:
         import yt_dlp  # type: ignore
     except ImportError as exc:
         raise DownloadError("yt-dlp is not installed. Run: pip install yt-dlp") from exc
-
-    url = _sanitize_url(url)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -59,8 +61,14 @@ def download_video(
             if filepath:
                 downloaded_path.append(Path(filepath))
 
+    if resolution == "best":
+        fmt = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+    else:
+        height = int(resolution) if resolution.isdigit() else 1080
+        fmt = f"bestvideo[ext=mp4][height<={height}]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+
     ydl_opts = {
-        "format": "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+        "format": fmt,
         "outtmpl": str(output_dir / "%(id)s.%(ext)s"),
         "quiet": True,
         "no_warnings": True,

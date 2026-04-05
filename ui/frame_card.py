@@ -13,10 +13,10 @@ from core.models import FrameResult
 class FrameCard(QFrame):
     """Fixed-size card showing a thumbnail, prompt preview, and timestamp."""
 
-    CARD_W = 200
-    CARD_H = 175
-    THUMB_W = 176
-    THUMB_H = 99
+    CARD_W = 220
+    CARD_H = 195
+    THUMB_W = 196
+    THUMB_H = 110
 
     selected = Signal(object)   # FrameResult
 
@@ -42,8 +42,8 @@ class FrameCard(QFrame):
     # ------------------------------------------------------------------
     def _setup_ui(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(6, 6, 6, 4)
-        layout.setSpacing(3)
+        layout.setContentsMargins(8, 8, 8, 6)
+        layout.setSpacing(5)
 
         # Thumbnail
         self._thumb_label = QLabel()

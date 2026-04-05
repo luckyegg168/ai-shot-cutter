@@ -56,6 +56,13 @@ class AppSettings:
     def set_theme(self, value: str) -> None:
         self._qs.setValue("theme", value)
 
+    # --- Resolution ---
+    def get_resolution(self) -> str:
+        return self._qs.value("resolution", "1080", type=str)
+
+    def set_resolution(self, value: str) -> None:
+        self._qs.setValue("resolution", value)
+
     # --- Language ---
     def get_language(self) -> str:
         return self._qs.value("language", "zh_TW", type=str)

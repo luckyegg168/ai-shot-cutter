@@ -11,6 +11,8 @@ from .extractor import extract_frames, get_video_duration
 from .models import DownloadError, ExtractionError, FrameResult, JobConfig, JobResult, VisionError
 from .vision import analyze_frame
 
+from utils.file_utils import create_output_dir, write_results_json, write_summary_md
+
 
 class Pipeline:
     """Orchestrates download → extract → vision for a single job."""
@@ -33,8 +35,6 @@ class Pipeline:
         Returns:
             JobResult with all processed frames (may be partial on cancel).
         """
-        from utils.file_utils import create_output_dir, write_results_json, write_summary_md
-
         result = JobResult(
             config=config,
             video_title="",
@@ -51,6 +51,7 @@ class Pipeline:
                 config.url,
                 output_root,
                 progress_cb=lambda pct, spd, eta: on_progress(pct, 100, f"Downloading… {spd} ETA {eta}"),
+                resolution=config.resolution,
             )
 
             # Extract video id from filename stem

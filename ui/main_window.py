@@ -6,11 +6,10 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QThread
-from PySide6.QtGui import QKeySequence
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
-    QShortcut,
     QSplitter,
     QStatusBar,
     QWidget,
@@ -44,22 +43,33 @@ class MainWindow(QMainWindow):
     # UI construction
     # ------------------------------------------------------------------
     def _setup_ui(self) -> None:
+        from PySide6.QtWidgets import QTabWidget, QVBoxLayout
+
         central = QWidget()
         self.setCentralWidget(central)
 
-        from PySide6.QtWidgets import QVBoxLayout
         root_layout = QVBoxLayout(central)
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
 
-        # Outer splitter (vertical): input | middle | log
-        outer_splitter = QSplitter(Qt.Orientation.Vertical)
+        # ── Main horizontal splitter: left tabs | right results ───────
+        main_splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        # Input panel
+        # ── Left: QTabWidget ─────────────────────────────────────────
+        self._tabs = QTabWidget()
+        self._tabs.setMinimumWidth(380)
+        self._tabs.setMaximumWidth(560)
+        self._tabs.setDocumentMode(True)
+
         self._input_panel = InputPanel(self._settings)
-        outer_splitter.addWidget(self._input_panel)
+        self._tabs.addTab(self._input_panel, self.tr("Job Settings"))
 
-        # Middle splitter (horizontal): gallery | prompt
+        main_splitter.addWidget(self._tabs)
+
+        # ── Right: vertical splitter (gallery+prompt | log) ──────────
+        right_splitter = QSplitter(Qt.Orientation.Vertical)
+
+        # Gallery | Prompt (horizontal)
         mid_splitter = QSplitter(Qt.Orientation.Horizontal)
         self._gallery = GalleryWidget()
         self._prompt_panel = PromptPanel()
@@ -67,18 +77,21 @@ class MainWindow(QMainWindow):
         mid_splitter.addWidget(self._prompt_panel)
         mid_splitter.setStretchFactor(0, 2)
         mid_splitter.setStretchFactor(1, 1)
-        outer_splitter.addWidget(mid_splitter)
+        right_splitter.addWidget(mid_splitter)
 
-        # Log panel
+        # Log
         self._log_panel = LogPanel()
-        outer_splitter.addWidget(self._log_panel)
+        right_splitter.addWidget(self._log_panel)
+        right_splitter.setStretchFactor(0, 1)
+        right_splitter.setStretchFactor(1, 0)
+        right_splitter.setSizes([600, 180])
 
-        outer_splitter.setStretchFactor(0, 0)
-        outer_splitter.setStretchFactor(1, 1)
-        outer_splitter.setStretchFactor(2, 0)
-        outer_splitter.setSizes([330, 350, 120])  # input | gallery+prompt | log
+        main_splitter.addWidget(right_splitter)
+        main_splitter.setStretchFactor(0, 0)
+        main_splitter.setStretchFactor(1, 1)
+        main_splitter.setSizes([440, 760])
 
-        root_layout.addWidget(outer_splitter)
+        root_layout.addWidget(main_splitter)
 
         # Status bar
         self.setStatusBar(QStatusBar())
@@ -90,11 +103,16 @@ class MainWindow(QMainWindow):
         self._gallery.card_selected.connect(self._prompt_panel.show_frame)
         self._prompt_panel.regenerate_requested.connect(self._on_regenerate)
 
-    # Feature 2: keyboard shortcuts
+        # Wire batch actions: give prompt_panel access to gallery frames
+        self._prompt_panel.set_all_frames_getter(self._gallery.get_all_frames)
+
+    # Feature: keyboard shortcuts (including frame navigation)
     def _setup_shortcuts(self) -> None:
         QShortcut(QKeySequence("Ctrl+Return"), self, self._input_panel.start_button.click)
         QShortcut(QKeySequence("Escape"), self, self._input_panel.stop_button.click)
         QShortcut(QKeySequence("Ctrl+Shift+C"), self, self._prompt_panel._copy_btn.click)
+        QShortcut(QKeySequence("Left"), self, self._gallery.select_prev)
+        QShortcut(QKeySequence("Right"), self, self._gallery.select_next)
 
     def _setup_menu(self) -> None:
         menubar = self.menuBar()
@@ -141,7 +159,7 @@ class MainWindow(QMainWindow):
         self._log_panel.set_progress(current, total, message)
         # Feature 4: live frame counter in status bar
         if total > 0:
-            self.statusBar().showMessage(f"影格 {current}/{total}  ·  {message}")
+            self.statusBar().showMessage(f"Frame {current}/{total}  ·  {message}")
         else:
             self.statusBar().showMessage(message)
 
@@ -165,7 +183,7 @@ class MainWindow(QMainWindow):
     def _on_error(self, message: str) -> None:
         self._input_panel.set_running(False)
         self._log_panel.log_error(message)
-        self.statusBar().showMessage(self.tr("Error"))
+        self.statusBar().showMessage(self.tr("Error occurred"))
         QMessageBox.critical(self, self.tr("Error"), message)
 
     # ------------------------------------------------------------------
@@ -215,8 +233,8 @@ class MainWindow(QMainWindow):
     def _show_about(self) -> None:
         QMessageBox.about(
             self,
-            self.tr("About"),
-            "<b>YouTube AI Frame Prompt Generator</b> v1.0.0<br>"
+            self.tr("關於"),
+            "<b>YouTube AI 影格 Prompt 生成器</b> v1.0.0<br>"
             "PySide6 · yt-dlp · ffmpeg · GPT-4o<br><br>"
             "© 2026 luckyegg168",
         )

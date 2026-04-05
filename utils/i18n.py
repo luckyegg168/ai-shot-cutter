@@ -22,6 +22,9 @@ class _JsonTranslator(QTranslator):
         super().__init__(parent)
         self._dict = translations
 
+    def isEmpty(self) -> bool:  # noqa: N802
+        return False
+
     def translate(
         self,
         context: str,
@@ -29,7 +32,7 @@ class _JsonTranslator(QTranslator):
         disambiguation: str | None = None,
         n: int = -1,
     ) -> str:
-        return self._dict.get(source_text, "")  # "" → Qt falls back to source_text
+        return self._dict.get(source_text, source_text)  # fallback to source
 
 
 def load_translator(

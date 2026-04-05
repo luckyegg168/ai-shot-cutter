@@ -1,12 +1,4 @@
-"""InputPanel — URL, interval, API key, prompt type, start/stop controls.
-
-Improvements v2:
-  1. API key show/hide eye toggle
-  2. Keyboard shortcuts (Ctrl+Enter = Start, Esc = Stop) — wired via MainWindow
-  3. Drag & drop URL support
-  4. Live frame counter in status bar — relayed via progress signal in MainWindow
-  5. Collapsible form panel
-"""
+"""InputPanel — URL, interval, API key, prompt type, start/stop controls."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -16,13 +8,13 @@ from PySide6.QtGui import QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
-    QFormLayout,
-    QGroupBox,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QSizePolicy,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -32,9 +24,12 @@ from core.models import JobConfig
 from utils.i18n import SUPPORTED_LANGUAGES
 from utils.settings import AppSettings
 
+_FIELD_H = 34   # uniform height for all input widgets
+_LBL_W  = 170  # fixed label column width
+
 
 class InputPanel(QWidget):
-    """Top panel containing all job configuration inputs."""
+    """Configuration form — lives inside the 任務設定 tab."""
 
     job_requested = Signal(object)  # JobConfig
 
@@ -42,16 +37,14 @@ class InputPanel(QWidget):
         super().__init__(parent)
         self._settings = settings
         self._running = False
-        self._form_collapsed = False
         self._setup_ui()
         self._load_settings()
         self._connect_signals()
         self._validate()
-        # Feature 3: accept URL drag & drop
         self.setAcceptDrops(True)
 
     # ------------------------------------------------------------------
-    # Public properties (used by MainWindow for shortcuts)
+    # Public properties
     # ------------------------------------------------------------------
     @property
     def stop_button(self) -> QPushButton:
@@ -66,111 +59,180 @@ class InputPanel(QWidget):
     # ------------------------------------------------------------------
     def _setup_ui(self) -> None:
         root = QVBoxLayout(self)
-        root.setContentsMargins(8, 4, 8, 6)
-        root.setSpacing(4)
+        root.setContentsMargins(20, 20, 20, 16)
+        root.setSpacing(0)
 
-        # ── Feature 5: Collapse / expand toggle bar ──────────────────
-        self._collapse_btn = QPushButton("▼  " + self.tr("Job Configuration"))
-        self._collapse_btn.setObjectName("collapse_toggle")
-        self._collapse_btn.setFlat(True)
-        root.addWidget(self._collapse_btn)
+        # ── Grid form ─────────────────────────────────────────────────
+        # 4-column: [label | field | label | field]
+        # Full-width rows span columns 1-3.
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(14)
+        grid.setVerticalSpacing(14)
+        grid.setColumnMinimumWidth(0, _LBL_W)
+        grid.setColumnMinimumWidth(2, _LBL_W)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(3, 1)
 
-        # ── Form container (hidden when collapsed) ───────────────────
-        self._form_widget = QGroupBox()
-        form = QFormLayout(self._form_widget)
-        form.setHorizontalSpacing(16)
-        form.setVerticalSpacing(10)
-        form.setContentsMargins(14, 12, 14, 12)
+        lbl = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
 
-        # URL
+        # Row 0 ── YouTube URL (spans full width) ─────────────────────
+        grid.addWidget(self._lbl("YouTube URL"), 0, 0, lbl)
         self._url_edit = QLineEdit()
+        self._url_edit.setFixedHeight(_FIELD_H)
         self._url_edit.setPlaceholderText("https://www.youtube.com/watch?v=…")
-        self._url_edit.setToolTip(self.tr("YouTube video URL · or drag-drop a URL here"))
-        form.addRow(self.tr("YouTube URL"), self._url_edit)
+        self._url_edit.setToolTip(self.tr("YouTube video URL"))
+        grid.addWidget(self._url_edit, 0, 1, 1, 3)
 
-        # Interval
+        # Row 1 ── Interval  |  Prompt Type ──────────────────────────
+        grid.addWidget(self._lbl(self.tr("Interval (sec)")), 1, 0, lbl)
         self._interval_spin = QSpinBox()
+        self._interval_spin.setFixedHeight(_FIELD_H)
         self._interval_spin.setRange(1, 300)
         self._interval_spin.setSuffix(" s")
         self._interval_spin.setToolTip(self.tr("Time between captured frames (seconds)"))
-        form.addRow(self.tr("Interval (sec)"), self._interval_spin)
+        grid.addWidget(self._interval_spin, 1, 1)
 
-        # Feature 1: API key + eye toggle ────────────────────────────
-        api_row = QHBoxLayout()
-        api_row.setSpacing(0)
-        self._api_edit = QLineEdit()
-        self._api_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self._api_edit.setPlaceholderText("sk-…")
-        self._api_edit.setToolTip(self.tr("OpenAI API Key (stored locally)"))
-        self._api_edit.setStyleSheet("border-radius: 6px 0 0 6px;")
-        self._eye_btn = QPushButton("👁")
-        self._eye_btn.setObjectName("eye_btn")
-        self._eye_btn.setCheckable(True)
-        self._eye_btn.setToolTip(self.tr("Show / hide API key"))
-        self._eye_btn.setFixedWidth(36)
-        api_row.addWidget(self._api_edit)
-        api_row.addWidget(self._eye_btn)
-        form.addRow(self.tr("OpenAI API Key"), api_row)
-
-        # Prompt type
+        grid.addWidget(self._lbl(self.tr("Prompt Type")), 1, 2, lbl)
         self._prompt_combo = QComboBox()
+        self._prompt_combo.setFixedHeight(_FIELD_H)
         self._prompt_combo.addItem(self.tr("Image Prompt"), "image")
         self._prompt_combo.addItem(self.tr("Video Prompt"), "video")
-        form.addRow(self.tr("Prompt Type"), self._prompt_combo)
+        self._prompt_combo.setMinimumWidth(140)
+        grid.addWidget(self._prompt_combo, 1, 3)
 
-        # Max frames
+        # Row 2 ── Max Frames  |  Language ────────────────────────────
+        grid.addWidget(self._lbl(self.tr("Max Frames (0=unlimited)")), 2, 0, lbl)
         self._max_frames_spin = QSpinBox()
+        self._max_frames_spin.setFixedHeight(_FIELD_H)
         self._max_frames_spin.setRange(0, 500)
         self._max_frames_spin.setSpecialValueText(self.tr("Unlimited"))
         self._max_frames_spin.setToolTip(self.tr("0 = unlimited"))
-        form.addRow(self.tr("Max Frames (0=unlimited)"), self._max_frames_spin)
+        grid.addWidget(self._max_frames_spin, 2, 1)
 
-        # Output dir
-        self._output_edit = QLineEdit()
-        self._output_edit.setReadOnly(True)
-        self._browse_btn = QPushButton(self.tr("Browse…"))
-        self._browse_btn.setFixedWidth(80)
-        dir_row = QHBoxLayout()
-        dir_row.addWidget(self._output_edit)
-        dir_row.addWidget(self._browse_btn)
-        form.addRow(self.tr("Output Dir"), dir_row)
-
-        # Language selector
+        grid.addWidget(self._lbl(self.tr("Language")), 2, 2, lbl)
         self._lang_combo = QComboBox()
+        self._lang_combo.setFixedHeight(_FIELD_H)
         for code, label in SUPPORTED_LANGUAGES.items():
             self._lang_combo.addItem(label, code)
-        self._lang_combo.setToolTip(self.tr("Restart the app to apply language change"))
-        form.addRow(self.tr("Language"), self._lang_combo)
+        self._lang_combo.setToolTip(self.tr("Restart to apply language"))
+        grid.addWidget(self._lang_combo, 2, 3)
 
-        root.addWidget(self._form_widget)
+        # Row 2.5 ── Video Resolution  |  Theme Toggle ───────────────
+        grid.addWidget(self._lbl(self.tr("Video Resolution")), 3, 0, lbl)
+        self._resolution_combo = QComboBox()
+        self._resolution_combo.setFixedHeight(_FIELD_H)
+        self._resolution_combo.addItem("720p", "720")
+        self._resolution_combo.addItem("1080p", "1080")
+        self._resolution_combo.addItem(self.tr("Best Quality"), "best")
+        self._resolution_combo.setToolTip(self.tr("Video resolution limit for yt-dlp"))
+        self._resolution_combo.setMinimumWidth(120)
+        grid.addWidget(self._resolution_combo, 3, 1)
 
-        # ── Buttons row ──────────────────────────────────────────────
+        grid.addWidget(self._lbl(self.tr("Theme")), 3, 2, lbl)
+        self._theme_combo = QComboBox()
+        self._theme_combo.setFixedHeight(_FIELD_H)
+        self._theme_combo.addItem(self.tr("Dark Theme"), "dark")
+        self._theme_combo.addItem(self.tr("Light Theme"), "light")
+        self._theme_combo.setToolTip(self.tr("Toggle dark / light appearance"))
+        self._theme_combo.setMinimumWidth(120)
+        grid.addWidget(self._theme_combo, 3, 3)
+
+        # Row 3 ── OpenAI API Key (full width) + eye ──────────────────
+        grid.addWidget(self._lbl(self.tr("OpenAI API Key")), 4, 0, lbl)
+        self._api_edit = QLineEdit()
+        self._api_edit.setFixedHeight(_FIELD_H)
+        self._api_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self._api_edit.setPlaceholderText("sk-…")
+        self._api_edit.setToolTip(self.tr("OpenAI API Key (stored locally only)"))
+        self._eye_btn = QPushButton("👁")
+        self._eye_btn.setObjectName("eye_btn")
+        self._eye_btn.setCheckable(True)
+        self._eye_btn.setFixedSize(36, _FIELD_H)
+        self._eye_btn.setToolTip(self.tr("Show / Hide"))
+        api_row = QHBoxLayout()
+        api_row.setSpacing(0)
+        api_row.setContentsMargins(0, 0, 0, 0)
+        api_row.addWidget(self._api_edit)
+        api_row.addWidget(self._eye_btn)
+        api_wrap = QWidget()
+        api_wrap.setLayout(api_row)
+        grid.addWidget(api_wrap, 4, 1, 1, 3)
+
+        # Row 5 ── Output Dir (full width) + Browse ───────────────────
+        grid.addWidget(self._lbl(self.tr("Output Dir")), 5, 0, lbl)
+        self._output_edit = QLineEdit()
+        self._output_edit.setFixedHeight(_FIELD_H)
+        self._output_edit.setReadOnly(True)
+        self._browse_btn = QPushButton(self.tr("Browse…"))
+        self._browse_btn.setFixedSize(72, _FIELD_H)
+        dir_row = QHBoxLayout()
+        dir_row.setSpacing(6)
+        dir_row.setContentsMargins(0, 0, 0, 0)
+        dir_row.addWidget(self._output_edit)
+        dir_row.addWidget(self._browse_btn)
+        dir_wrap = QWidget()
+        dir_wrap.setLayout(dir_row)
+        grid.addWidget(dir_wrap, 5, 1, 1, 3)
+
+        root.addLayout(grid)
+        root.addSpacing(20)
+
+        # ── Divider ───────────────────────────────────────────────────
+        from PySide6.QtWidgets import QFrame
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        root.addWidget(line)
+        root.addSpacing(12)
+
+        # ── Buttons row ───────────────────────────────────────────────
         btn_row = QHBoxLayout()
-        btn_row.setSpacing(8)
+        btn_row.setSpacing(10)
 
         self._btn_start = QPushButton(self.tr("Start"))
         self._btn_start.setObjectName("btn_start")
+        self._btn_start.setFixedHeight(38)
         self._btn_start.setToolTip("Ctrl+Enter")
+        self._btn_start.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         self._btn_stop = QPushButton(self.tr("Stop"))
         self._btn_stop.setObjectName("btn_stop")
+        self._btn_stop.setFixedHeight(38)
         self._btn_stop.setEnabled(False)
         self._btn_stop.setToolTip("Esc")
+        self._btn_stop.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         self._btn_open = QPushButton(self.tr("Open Output"))
+        self._btn_open.setFixedHeight(38)
 
         btn_row.addWidget(self._btn_start)
         btn_row.addWidget(self._btn_stop)
         btn_row.addStretch()
         btn_row.addWidget(self._btn_open)
         root.addLayout(btn_row)
+        root.addSpacing(8)
 
-        # Validation message
+        # ── Validation message ────────────────────────────────────────
         self._error_label = QLabel()
-        self._error_label.setStyleSheet("color: #f38ba8; font-size: 11px; background: transparent;")
-        self._error_label.setContentsMargins(4, 0, 0, 0)
+        self._error_label.setStyleSheet(
+            "color: #f38ba8; font-size: 11px; background: transparent;"
+        )
         root.addWidget(self._error_label)
+        root.addStretch()
 
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _lbl(text: str) -> QLabel:
+        lbl = QLabel(text)
+        lbl.setStyleSheet("font-size: 13px;")
+        lbl.setMinimumWidth(_LBL_W)
+        return lbl
+
+    # ------------------------------------------------------------------
+    # Settings
+    # ------------------------------------------------------------------
     def _load_settings(self) -> None:
         s = self._settings
         self._api_edit.setText(s.get_api_key())
@@ -183,6 +245,12 @@ class InputPanel(QWidget):
         lang_idx = self._lang_combo.findData(s.get_language())
         if lang_idx >= 0:
             self._lang_combo.setCurrentIndex(lang_idx)
+        res_idx = self._resolution_combo.findData(s.get_resolution())
+        if res_idx >= 0:
+            self._resolution_combo.setCurrentIndex(res_idx)
+        theme_idx = self._theme_combo.findData(s.get_theme())
+        if theme_idx >= 0:
+            self._theme_combo.setCurrentIndex(theme_idx)
 
     def _connect_signals(self) -> None:
         self._url_edit.textChanged.connect(self._validate)
@@ -193,15 +261,16 @@ class InputPanel(QWidget):
         self._prompt_combo.currentIndexChanged.connect(
             lambda _: self._settings.set_prompt_type(self._prompt_combo.currentData())
         )
+        self._resolution_combo.currentIndexChanged.connect(
+            lambda _: self._settings.set_resolution(self._resolution_combo.currentData())
+        )
+        self._theme_combo.currentIndexChanged.connect(self._on_theme_changed)
         self._lang_combo.currentIndexChanged.connect(self._on_language_changed)
         self._btn_start.clicked.connect(self._on_start)
         self._btn_stop.clicked.connect(self._request_stop)
         self._browse_btn.clicked.connect(self._browse_output)
         self._btn_open.clicked.connect(self._open_output)
-        # Feature 1: eye toggle
         self._eye_btn.toggled.connect(self._toggle_api_visibility)
-        # Feature 5: collapse toggle
-        self._collapse_btn.clicked.connect(self._toggle_collapse)
 
     # ------------------------------------------------------------------
     # Validation
@@ -209,19 +278,17 @@ class InputPanel(QWidget):
     def _validate(self) -> None:
         url = self._url_edit.text().strip()
         key = self._api_edit.text().strip()
-
         errors: list[str] = []
         if not url:
-            errors.append(self.tr("URL is required"))
+            errors.append(self.tr("URL required"))
         elif not url.startswith("http"):
             errors.append(self.tr("Invalid URL"))
         if not key:
-            errors.append(self.tr("API key is required"))
+            errors.append(self.tr("API key required"))
         elif not key.startswith("sk-"):
-            errors.append(self.tr("API key must start with sk-"))
-
+            errors.append(self.tr("API Key must start with sk-"))
         if errors:
-            self._error_label.setText(" · ".join(errors))
+            self._error_label.setText("⚠  " + "  ·  ".join(errors))
             self._btn_start.setEnabled(False)
         else:
             self._error_label.clear()
@@ -236,52 +303,13 @@ class InputPanel(QWidget):
         self._btn_stop.setEnabled(running)
 
     # ------------------------------------------------------------------
-    # Feature 1: API Key show/hide
+    # Slots
     # ------------------------------------------------------------------
     def _toggle_api_visibility(self, checked: bool) -> None:
         mode = QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
         self._api_edit.setEchoMode(mode)
         self._eye_btn.setText("🙈" if checked else "👁")
 
-    # ------------------------------------------------------------------
-    # Feature 5: Collapse / expand
-    # ------------------------------------------------------------------
-    def _toggle_collapse(self) -> None:
-        self._form_collapsed = not self._form_collapsed
-        self._form_widget.setVisible(not self._form_collapsed)
-        arrow = "▶" if self._form_collapsed else "▼"
-        self._collapse_btn.setText(f"{arrow}  " + self.tr("Job Configuration"))
-
-    # ------------------------------------------------------------------
-    # Feature 3: Drag & drop URL
-    # ------------------------------------------------------------------
-    def dragEnterEvent(self, event: QDragEnterEvent) -> None:  # noqa: N802
-        mime = event.mimeData()
-        if mime.hasText() or mime.hasUrls():
-            event.acceptProposedAction()
-        else:
-            event.ignore()
-
-    def dropEvent(self, event: QDropEvent) -> None:  # noqa: N802
-        mime = event.mimeData()
-        text = ""
-        if mime.hasUrls():
-            text = mime.urls()[0].toString()
-        elif mime.hasText():
-            text = mime.text().strip()
-
-        if text.startswith("http"):
-            self._url_edit.setText(text)
-            # auto-expand if collapsed
-            if self._form_collapsed:
-                self._toggle_collapse()
-            event.acceptProposedAction()
-        else:
-            event.ignore()
-
-    # ------------------------------------------------------------------
-    # Slots
-    # ------------------------------------------------------------------
     def _on_start(self) -> None:
         config = JobConfig(
             url=self._url_edit.text().strip(),
@@ -290,6 +318,7 @@ class InputPanel(QWidget):
             output_dir=Path(self._output_edit.text()),
             prompt_type=self._prompt_combo.currentData(),
             max_frames=self._max_frames_spin.value(),
+            resolution=self._resolution_combo.currentData(),
         )
         self._settings.sync()
         self.job_requested.emit(config)
@@ -300,7 +329,16 @@ class InputPanel(QWidget):
         QMessageBox.information(
             self,
             self.tr("Language"),
-            self.tr("Restart the app to apply the language change."),
+            self.tr("Restart to apply language"),
+        )
+
+    def _on_theme_changed(self) -> None:
+        theme: str = self._theme_combo.currentData()
+        self._settings.set_theme(theme)
+        QMessageBox.information(
+            self,
+            self.tr("Theme"),
+            self.tr("Restart to apply theme"),
         )
 
     def _request_stop(self) -> None:
@@ -308,7 +346,7 @@ class InputPanel(QWidget):
 
     def _browse_output(self) -> None:
         folder = QFileDialog.getExistingDirectory(
-            self, self.tr("Select Output Folder"), self._output_edit.text()
+            self, self.tr("Select output folder"), self._output_edit.text()
         )
         if folder:
             self._output_edit.setText(folder)
@@ -326,3 +364,26 @@ class InputPanel(QWidget):
                 subprocess.Popen(["open", path])
             else:
                 subprocess.Popen(["xdg-open", path])
+
+    # ------------------------------------------------------------------
+    # Drag & drop URL
+    # ------------------------------------------------------------------
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:  # noqa: N802
+        mime = event.mimeData()
+        if mime.hasText() or mime.hasUrls():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event: QDropEvent) -> None:  # noqa: N802
+        mime = event.mimeData()
+        text = ""
+        if mime.hasUrls():
+            text = mime.urls()[0].toString()
+        elif mime.hasText():
+            text = mime.text().strip()
+        if text.startswith("http"):
+            self._url_edit.setText(text)
+            event.acceptProposedAction()
+        else:
+            event.ignore()
