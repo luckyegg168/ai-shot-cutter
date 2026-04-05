@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import shutil
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
@@ -70,24 +72,31 @@ class PromptPanel(QWidget):
         btn_row.setSpacing(8)
         self._copy_btn = QPushButton(self.tr("Copy Prompt"))
         self._regen_btn = QPushButton(self.tr("Regenerate"))
+        self._save_btn = QPushButton(self.tr("Save Frame"))
+        self._save_btn.setToolTip(self.tr("Save this frame image to disk"))
         self._copy_btn.setEnabled(False)
         self._regen_btn.setEnabled(False)
+        self._save_btn.setEnabled(False)
         btn_row.addWidget(self._copy_btn)
         btn_row.addWidget(self._regen_btn)
+        btn_row.addWidget(self._save_btn)
         btn_row.addStretch()
         inner.addLayout(btn_row)
 
         inner.addSpacing(8)
 
-        # ── Batch action buttons (Feature 1 & 2) ────────────────────
+        # ── Batch action buttons ───────────────────────────────────
         batch_row = QHBoxLayout()
         batch_row.setSpacing(8)
         self._copy_all_btn = QPushButton(self.tr("Copy All Prompts"))
         self._copy_all_btn.setToolTip(self.tr("Copy all frame prompts to clipboard"))
         self._export_btn = QPushButton(self.tr("Export Prompts (.txt)"))
         self._export_btn.setToolTip(self.tr("Export all prompts to a .txt file"))
+        self._save_all_btn = QPushButton(self.tr("Save All Frames"))
+        self._save_all_btn.setToolTip(self.tr("Save all frame images to a folder"))
         batch_row.addWidget(self._copy_all_btn)
         batch_row.addWidget(self._export_btn)
+        batch_row.addWidget(self._save_all_btn)
         batch_row.addStretch()
         inner.addLayout(batch_row)
 
@@ -96,8 +105,10 @@ class PromptPanel(QWidget):
         # Connections
         self._copy_btn.clicked.connect(self._copy_prompt)
         self._regen_btn.clicked.connect(self._request_regen)
+        self._save_btn.clicked.connect(self._save_frame)
         self._copy_all_btn.clicked.connect(self._copy_all_prompts)
         self._export_btn.clicked.connect(self._export_all_prompts)
+        self._save_all_btn.clicked.connect(self._save_all_frames)
 
     # ------------------------------------------------------------------
     def show_frame(self, result: FrameResult) -> None:
@@ -123,6 +134,7 @@ class PromptPanel(QWidget):
         self._prompt_edit.setPlainText(result.prompt)
         self._copy_btn.setEnabled(True)
         self._regen_btn.setEnabled(True)
+        self._save_btn.setEnabled(True)
 
     def update_prompt(self, result: FrameResult) -> None:
         """Update prompt text for current frame (after regeneration)."""
@@ -139,6 +151,27 @@ class PromptPanel(QWidget):
     def _request_regen(self) -> None:
         if self._current_result:
             self.regenerate_requested.emit(self._current_result)
+
+    def _save_frame(self) -> None:
+        """Save the currently selected frame image to a user-chosen path."""
+        if not self._current_result:
+            return
+        src = self._current_result.image_path
+        default_name = src.name
+        dest, _ = QFileDialog.getSaveFileName(
+            self,
+            self.tr("Save Frame"),
+            default_name,
+            "Images (*.jpg *.jpeg *.png *.webp);;All Files (*)",
+        )
+        if not dest:
+            return
+        shutil.copy2(src, dest)
+        QMessageBox.information(
+            self,
+            self.tr("Saved"),
+            self.tr(f"Frame saved to:\n{dest}"),
+        )
 
     # ------------------------------------------------------------------
     # Feature 1: Copy All Prompts
@@ -178,6 +211,40 @@ class PromptPanel(QWidget):
             self,
             self.tr("Export Complete"),
             self.tr(f"Exported {len(frames)} prompts to:\n{path}"),
+        )
+
+    # ------------------------------------------------------------------
+    # Save All Frames
+    # ------------------------------------------------------------------
+    def _save_all_frames(self) -> None:
+        """Copy all frame images to a user-chosen folder."""
+        frames = self._get_all_frames()
+        if not frames:
+            QMessageBox.warning(
+                self,
+                self.tr("No Frames"),
+                self.tr("No frames available to save."),
+            )
+            return
+
+        folder = QFileDialog.getExistingDirectory(
+            self,
+            self.tr("Select folder to save frames"),
+        )
+        if not folder:
+            return
+
+        dest_dir = Path(folder)
+        saved = 0
+        for fr in frames:
+            dest = dest_dir / fr.image_path.name
+            shutil.copy2(fr.image_path, dest)
+            saved += 1
+
+        QMessageBox.information(
+            self,
+            self.tr("Saved"),
+            self.tr(f"Saved {saved} frames to:\n{folder}"),
         )
 
     # ------------------------------------------------------------------

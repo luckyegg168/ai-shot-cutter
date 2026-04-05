@@ -86,5 +86,13 @@
   "System Prompt": "系統提示詞",
   "Leave empty to use default prompt…": "留空則使用預設提示詞…",
   "Custom system prompt (overrides default)": "自訂系統提示詞（覆蓋預設）",
-  "Model API URL required": "需要模型 API 網址"
+  "Model API URL required": "需要模型 API 網址",
+  "Save Frame": "儲存影格",
+  "Save this frame image to disk": "將此影格圖片儲存到磁碟",
+  "Save All Frames": "儲存所有影格",
+  "Save all frame images to a folder": "將所有影格圖片儲存到資料夾",
+  "Saved": "已儲存",
+  "No Frames": "沒有影格",
+  "No frames available to save.": "目前沒有可儲存的影格。",
+  "Select folder to save frames": "選擇儲存影格的資料夾"
 }
