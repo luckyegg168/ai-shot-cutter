@@ -16,6 +16,7 @@ class PipelineWorker(QThread):
     frame_ready = Signal(object)               # FrameResult
     job_finished = Signal(object)              # JobResult
     error_occurred = Signal(str)               # error message
+    metadata_ready = Signal(object)            # dict with video metadata
 
     def __init__(self, config: JobConfig, parent=None) -> None:
         super().__init__(parent)
@@ -41,6 +42,7 @@ class PipelineWorker(QThread):
                 on_progress=self._on_progress,
                 on_frame_done=self._on_frame_done,
                 stop_event=self._stop_event,
+                on_metadata=self._on_metadata,
             )
             self.job_finished.emit(result)
         except Exception as exc:
@@ -54,3 +56,6 @@ class PipelineWorker(QThread):
 
     def _on_frame_done(self, frame: FrameResult) -> None:
         self.frame_ready.emit(frame)
+
+    def _on_metadata(self, meta: dict) -> None:
+        self.metadata_ready.emit(meta)

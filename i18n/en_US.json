@@ -69,5 +69,18 @@
   "Export all prompts to a .txt file": "Export all prompts to a .txt file",
   "Image not found": "Image not found",
   "Export All Prompts": "Export All Prompts",
-  "Error occurred": "Error occurred"
+  "Error occurred": "Error occurred",
+  "Local Model": "Local Model",
+  "Use Local Model": "Use Local Model",
+  "Model Name": "Model Name",
+  "Model API URL": "Model API URL",
+  "Model name for API": "Model name for API",
+  "OpenAI-compatible API endpoint": "OpenAI-compatible API endpoint",
+  "Blur Threshold": "Blur Threshold",
+  "Disabled": "Disabled",
+  "Skip frames with blur score below this (0=disabled)": "Skip frames with blur score below this (0=disabled)",
+  "System Prompt": "System Prompt",
+  "Leave empty to use default prompt…": "Leave empty to use default prompt…",
+  "Custom system prompt (overrides default)": "Custom system prompt (overrides default)",
+  "Model API URL required": "Model API URL required"
 }

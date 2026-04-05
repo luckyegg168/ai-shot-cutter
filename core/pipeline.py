@@ -1,6 +1,8 @@
 """Pipeline orchestrator — pure Python, no Qt imports."""
 from __future__ import annotations
 
+import json
+import subprocess
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,6 +16,50 @@ from .vision import analyze_frame
 from utils.file_utils import create_output_dir, write_results_json, write_summary_md
 
 
+def _get_video_metadata(video_path: Path) -> dict:
+    """Return a dict with duration, width, height, fps from ffprobe."""
+    try:
+        cmd = [
+            "ffprobe", "-v", "quiet", "-print_format", "json",
+            "-show_streams", "-show_format", str(video_path),
+        ]
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if proc.returncode != 0:
+            return {}
+        data = json.loads(proc.stdout)
+        meta: dict = {}
+        fmt = data.get("format", {})
+        meta["duration"] = float(fmt.get("duration", 0))
+        meta["format_name"] = fmt.get("format_long_name", "")
+        for s in data.get("streams", []):
+            if s.get("codec_type") == "video":
+                meta["width"] = int(s.get("width", 0))
+                meta["height"] = int(s.get("height", 0))
+                r_frame = s.get("r_frame_rate", "0/1")
+                parts = r_frame.split("/")
+                if len(parts) == 2 and int(parts[1]) > 0:
+                    meta["fps"] = round(int(parts[0]) / int(parts[1]), 2)
+                else:
+                    meta["fps"] = 0.0
+                meta["codec"] = s.get("codec_name", "")
+                break
+        return meta
+    except Exception:
+        return {}
+
+
+def _compute_blur_score(image_path: Path) -> float:
+    """Compute Laplacian variance as a blur score. Higher = sharper."""
+    try:
+        import cv2
+        img = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
+        if img is None:
+            return 999.0  # can't read → treat as sharp (don't filter)
+        return float(cv2.Laplacian(img, cv2.CV_64F).var())
+    except ImportError:
+        return 999.0  # cv2 not installed → skip filtering
+
+
 class Pipeline:
     """Orchestrates download → extract → vision for a single job."""
 
@@ -23,6 +69,7 @@ class Pipeline:
         on_progress: Callable[[int, int, str], None],
         on_frame_done: Callable[[FrameResult], None],
         stop_event: threading.Event,
+        on_metadata: Callable[[dict], None] | None = None,
     ) -> JobResult:
         """Run the full pipeline.
 
@@ -31,6 +78,7 @@ class Pipeline:
             on_progress: Callback(current, total, message).
             on_frame_done: Callback(FrameResult) after each frame is analysed.
             stop_event: Set this to request cancellation.
+            on_metadata: Optional callback(dict) with video metadata.
 
         Returns:
             JobResult with all processed frames (may be partial on cancel).
@@ -69,6 +117,11 @@ class Pipeline:
             # Update video_path to reflect the renamed directory
             video_path = output_root / video_path.name
 
+            # --- Step 2.5: extract video metadata ---
+            metadata = _get_video_metadata(video_path)
+            if on_metadata and metadata:
+                on_metadata(metadata)
+
             frames_dir = output_root / "frames"
             prompts_dir = output_root / "prompts"
             frames_dir.mkdir(exist_ok=True)
@@ -86,6 +139,17 @@ class Pipeline:
             if config.max_frames > 0:
                 raw_frames = raw_frames[: config.max_frames]
 
+            # Apply blur filter (skip blurry frames)
+            if config.blur_threshold > 0:
+                filtered: list[Path] = []
+                for fp in raw_frames:
+                    score = _compute_blur_score(fp)
+                    if score >= config.blur_threshold:
+                        filtered.append(fp)
+                    else:
+                        on_progress(0, 1, f"Skipped blurry frame: {fp.name} (score={score:.1f})")
+                raw_frames = filtered
+
             total = len(raw_frames)
             if total == 0:
                 result.error_message = "No frames extracted"
@@ -102,7 +166,15 @@ class Pipeline:
                 on_progress(i - 1, total, f"Analyzing frame {i}/{total}…")
 
                 try:
-                    prompt = analyze_frame(frame_path, config.api_key, config.prompt_type)
+                    prompt = analyze_frame(
+                        frame_path,
+                        config.api_key,
+                        config.prompt_type,
+                        use_local_model=config.use_local_model,
+                        local_model_url=config.local_model_url,
+                        model_name=config.model_name,
+                        custom_system_prompt=config.custom_system_prompt,
+                    )
                 except VisionError as exc:
                     prompt = f"[Vision error: {exc}]"
 

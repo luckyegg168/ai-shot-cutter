@@ -14,6 +14,11 @@ class JobConfig:
     prompt_type: str           # "image" | "video"
     max_frames: int = 0        # 0 = unlimited
     resolution: str = "1080"   # "720" | "1080" | "best"
+    use_local_model: bool = False
+    local_model_url: str = ""  # e.g. http://192.168.1.100:11434/v1
+    model_name: str = ""       # e.g. llava, gpt-4o
+    custom_system_prompt: str = ""  # user-defined system prompt
+    blur_threshold: float = 0.0    # 0 = disabled; >0 skip blurry frames
 
 
 @dataclass(frozen=True)

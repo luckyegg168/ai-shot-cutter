@@ -6,13 +6,16 @@ from pathlib import Path
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
+    QDoubleSpinBox,
     QFileDialog,
     QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMessageBox,
+    QPlainTextEdit,
     QPushButton,
     QSizePolicy,
     QSpinBox,
@@ -75,11 +78,14 @@ class InputPanel(QWidget):
 
         lbl = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
 
-        # Row 0 ── YouTube URL (spans full width) ─────────────────────
+        # Row 0 ── YouTube URL (multi-line for batch) ────────────────
         grid.addWidget(self._lbl("YouTube URL"), 0, 0, lbl)
-        self._url_edit = QLineEdit()
-        self._url_edit.setFixedHeight(_FIELD_H)
-        self._url_edit.setPlaceholderText("https://www.youtube.com/watch?v=…")
+        self._url_edit = QPlainTextEdit()
+        self._url_edit.setFixedHeight(60)
+        self._url_edit.setPlaceholderText(
+            "https://www.youtube.com/watch?v=…\n"
+            "(one URL per line for batch processing)"
+        )
         self._url_edit.setToolTip(self.tr("YouTube video URL"))
         grid.addWidget(self._url_edit, 0, 1, 1, 3)
 
@@ -174,6 +180,48 @@ class InputPanel(QWidget):
         dir_wrap.setLayout(dir_row)
         grid.addWidget(dir_wrap, 5, 1, 1, 3)
 
+        # Row 6 ── Local Model toggle  |  Model Name ─────────────────
+        grid.addWidget(self._lbl(self.tr("Local Model")), 6, 0, lbl)
+        self._local_model_check = QCheckBox(self.tr("Use Local Model"))
+        self._local_model_check.setFixedHeight(_FIELD_H)
+        grid.addWidget(self._local_model_check, 6, 1)
+
+        grid.addWidget(self._lbl(self.tr("Model Name")), 6, 2, lbl)
+        self._model_name_edit = QLineEdit()
+        self._model_name_edit.setFixedHeight(_FIELD_H)
+        self._model_name_edit.setPlaceholderText("gpt-4o / llava / llama3.2-vision")
+        self._model_name_edit.setToolTip(self.tr("Model name for API"))
+        grid.addWidget(self._model_name_edit, 6, 3)
+
+        # Row 7 ── Local Model URL (full width) ──────────────────────
+        grid.addWidget(self._lbl(self.tr("Model API URL")), 7, 0, lbl)
+        self._model_url_edit = QLineEdit()
+        self._model_url_edit.setFixedHeight(_FIELD_H)
+        self._model_url_edit.setPlaceholderText("http://192.168.1.100:11434/v1")
+        self._model_url_edit.setToolTip(self.tr("OpenAI-compatible API endpoint"))
+        grid.addWidget(self._model_url_edit, 7, 1, 1, 3)
+
+        # Row 8 ── Blur Threshold  |  (empty) ────────────────────────
+        grid.addWidget(self._lbl(self.tr("Blur Threshold")), 8, 0, lbl)
+        self._blur_spin = QDoubleSpinBox()
+        self._blur_spin.setFixedHeight(_FIELD_H)
+        self._blur_spin.setRange(0.0, 9999.0)
+        self._blur_spin.setSingleStep(10.0)
+        self._blur_spin.setDecimals(1)
+        self._blur_spin.setSpecialValueText(self.tr("Disabled"))
+        self._blur_spin.setToolTip(self.tr("Skip frames with blur score below this (0=disabled)"))
+        grid.addWidget(self._blur_spin, 8, 1)
+
+        # Row 9 ── Custom System Prompt (full width) ──────────────────
+        grid.addWidget(self._lbl(self.tr("System Prompt")), 9, 0, lbl)
+        self._system_prompt_edit = QPlainTextEdit()
+        self._system_prompt_edit.setFixedHeight(60)
+        self._system_prompt_edit.setPlaceholderText(
+            self.tr("Leave empty to use default prompt…")
+        )
+        self._system_prompt_edit.setToolTip(self.tr("Custom system prompt (overrides default)"))
+        grid.addWidget(self._system_prompt_edit, 9, 1, 1, 3)
+
         root.addLayout(grid)
         root.addSpacing(20)
 
@@ -251,6 +299,13 @@ class InputPanel(QWidget):
         theme_idx = self._theme_combo.findData(s.get_theme())
         if theme_idx >= 0:
             self._theme_combo.setCurrentIndex(theme_idx)
+        # New settings
+        self._local_model_check.setChecked(s.get_use_local_model())
+        self._model_url_edit.setText(s.get_local_model_url())
+        self._model_name_edit.setText(s.get_model_name())
+        self._system_prompt_edit.setPlainText(s.get_custom_system_prompt())
+        self._blur_spin.setValue(s.get_blur_threshold())
+        self._on_local_model_toggled(s.get_use_local_model())
 
     def _connect_signals(self) -> None:
         self._url_edit.textChanged.connect(self._validate)
@@ -271,22 +326,57 @@ class InputPanel(QWidget):
         self._browse_btn.clicked.connect(self._browse_output)
         self._btn_open.clicked.connect(self._open_output)
         self._eye_btn.toggled.connect(self._toggle_api_visibility)
+        # New signal connections
+        self._local_model_check.toggled.connect(self._on_local_model_toggled)
+        self._local_model_check.toggled.connect(
+            lambda v: self._settings.set_use_local_model(v)
+        )
+        self._model_url_edit.textChanged.connect(
+            lambda t: self._settings.set_local_model_url(t)
+        )
+        self._model_url_edit.textChanged.connect(lambda _: self._validate())
+        self._model_name_edit.textChanged.connect(
+            lambda t: self._settings.set_model_name(t)
+        )
+        self._blur_spin.valueChanged.connect(
+            lambda v: self._settings.set_blur_threshold(v)
+        )
+        self._system_prompt_edit.textChanged.connect(
+            lambda: self._settings.set_custom_system_prompt(
+                self._system_prompt_edit.toPlainText()
+            )
+        )
 
     # ------------------------------------------------------------------
     # Validation
     # ------------------------------------------------------------------
     def _validate(self) -> None:
-        url = self._url_edit.text().strip()
+        url_text = self._url_edit.toPlainText().strip()
         key = self._api_edit.text().strip()
+        use_local = self._local_model_check.isChecked()
         errors: list[str] = []
-        if not url:
+
+        # Validate URLs — at least one valid URL required
+        if not url_text:
             errors.append(self.tr("URL required"))
-        elif not url.startswith("http"):
-            errors.append(self.tr("Invalid URL"))
-        if not key:
-            errors.append(self.tr("API key required"))
-        elif not key.startswith("sk-"):
-            errors.append(self.tr("API Key must start with sk-"))
+        else:
+            urls = [u.strip() for u in url_text.splitlines() if u.strip()]
+            for u in urls:
+                if not u.startswith("http"):
+                    errors.append(self.tr("Invalid URL") + f": {u[:30]}")
+                    break
+
+        # API key validation depends on mode
+        if use_local:
+            model_url = self._model_url_edit.text().strip()
+            if not model_url:
+                errors.append(self.tr("Model API URL required"))
+        else:
+            if not key:
+                errors.append(self.tr("API key required"))
+            elif not key.startswith("sk-"):
+                errors.append(self.tr("API Key must start with sk-"))
+
         if errors:
             self._error_label.setText("⚠  " + "  ·  ".join(errors))
             self._btn_start.setEnabled(False)
@@ -311,17 +401,29 @@ class InputPanel(QWidget):
         self._eye_btn.setText("🙈" if checked else "👁")
 
     def _on_start(self) -> None:
-        config = JobConfig(
-            url=self._url_edit.text().strip(),
-            interval_sec=self._interval_spin.value(),
-            api_key=self._api_edit.text().strip(),
-            output_dir=Path(self._output_edit.text()),
-            prompt_type=self._prompt_combo.currentData(),
-            max_frames=self._max_frames_spin.value(),
-            resolution=self._resolution_combo.currentData(),
-        )
-        self._settings.sync()
-        self.job_requested.emit(config)
+        url_text = self._url_edit.toPlainText().strip()
+        urls = [u.strip() for u in url_text.splitlines() if u.strip()]
+        if not urls:
+            return
+
+        # Emit one config per URL (MainWindow will handle the batch)
+        for url in urls:
+            config = JobConfig(
+                url=url,
+                interval_sec=self._interval_spin.value(),
+                api_key=self._api_edit.text().strip(),
+                output_dir=Path(self._output_edit.text()),
+                prompt_type=self._prompt_combo.currentData(),
+                max_frames=self._max_frames_spin.value(),
+                resolution=self._resolution_combo.currentData(),
+                use_local_model=self._local_model_check.isChecked(),
+                local_model_url=self._model_url_edit.text().strip(),
+                model_name=self._model_name_edit.text().strip(),
+                custom_system_prompt=self._system_prompt_edit.toPlainText().strip(),
+                blur_threshold=self._blur_spin.value(),
+            )
+            self._settings.sync()
+            self.job_requested.emit(config)
 
     def _on_language_changed(self) -> None:
         code: str = self._lang_combo.currentData()
@@ -343,6 +445,11 @@ class InputPanel(QWidget):
 
     def _request_stop(self) -> None:
         self._btn_stop.setEnabled(False)
+
+    def _on_local_model_toggled(self, checked: bool) -> None:
+        self._model_url_edit.setEnabled(checked)
+        self._model_name_edit.setEnabled(checked)
+        self._validate()
 
     def _browse_output(self) -> None:
         folder = QFileDialog.getExistingDirectory(

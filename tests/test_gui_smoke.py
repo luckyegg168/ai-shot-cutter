@@ -39,13 +39,13 @@ def test_input_panel_validation(qapp, tmp_path):
     panel.show()
 
     # Empty URL → disabled
-    panel._url_edit.setText("")
+    panel._url_edit.setPlainText("")
     panel._api_edit.setText("sk-valid")
     panel._validate()
     assert not panel._btn_start.isEnabled()
 
     # Valid URL + key → enabled
-    panel._url_edit.setText("https://youtube.com/watch?v=dQw4w9WgXcQ")
+    panel._url_edit.setPlainText("https://youtube.com/watch?v=dQw4w9WgXcQ")
     panel._api_edit.setText("sk-valid-key")
     panel._validate()
     assert panel._btn_start.isEnabled()

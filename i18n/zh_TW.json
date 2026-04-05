@@ -73,5 +73,18 @@
   "Export all prompts to a .txt file": "將所有 Prompt 匯出為 .txt 檔案",
   "Image not found": "找不到圖片",
   "Export All Prompts": "匯出全部 Prompt",
-  "Error occurred": "發生錯誤"
+  "Error occurred": "發生錯誤",
+  "Local Model": "本地模型",
+  "Use Local Model": "使用本地模型",
+  "Model Name": "模型名稱",
+  "Model API URL": "模型 API 網址",
+  "Model name for API": "API 使用的模型名稱",
+  "OpenAI-compatible API endpoint": "OpenAI 相容 API 端點",
+  "Blur Threshold": "模糊門檻",
+  "Disabled": "停用",
+  "Skip frames with blur score below this (0=disabled)": "略過模糊分數低於此值的影格（0=停用）",
+  "System Prompt": "系統提示詞",
+  "Leave empty to use default prompt…": "留空則使用預設提示詞…",
+  "Custom system prompt (overrides default)": "自訂系統提示詞（覆蓋預設）",
+  "Model API URL required": "需要模型 API 網址"
 }

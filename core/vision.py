@@ -33,13 +33,22 @@ def analyze_frame(
     image_path: Path,
     api_key: str,
     prompt_type: str,
+    *,
+    use_local_model: bool = False,
+    local_model_url: str = "",
+    model_name: str = "",
+    custom_system_prompt: str = "",
 ) -> str:
-    """Send a frame to GPT-4o Vision and return a prompt string.
+    """Send a frame to GPT-4o Vision (or local model) and return a prompt string.
 
     Args:
         image_path: Path to the JPEG frame.
-        api_key: OpenAI API key (sk-…).
+        api_key: OpenAI API key (sk-…) or local model token.
         prompt_type: "image" or "video".
+        use_local_model: If True, use local_model_url instead of OpenAI.
+        local_model_url: Base URL for OpenAI-compatible local API.
+        model_name: Model name override (e.g. "llava", "gpt-4o").
+        custom_system_prompt: User-defined system prompt (overrides default).
 
     Returns:
         Non-empty prompt string.
@@ -52,13 +61,26 @@ def analyze_frame(
     except ImportError as exc:
         raise VisionError("openai package is not installed. Run: pip install openai") from exc
 
-    if prompt_type == "video":
+    # Determine system prompt
+    if custom_system_prompt.strip():
+        system_prompt = custom_system_prompt.strip()
+    elif prompt_type == "video":
         system_prompt = _VIDEO_SYSTEM_PROMPT
     else:
         system_prompt = _IMAGE_SYSTEM_PROMPT
 
     image_data_url = _encode_image(image_path)
-    client = OpenAI(api_key=api_key)
+
+    # Build client: local model or OpenAI
+    if use_local_model and local_model_url.strip():
+        client = OpenAI(
+            api_key=api_key if api_key.strip() else "local-no-key",
+            base_url=local_model_url.strip(),
+        )
+    else:
+        client = OpenAI(api_key=api_key)
+
+    chosen_model = model_name.strip() if model_name.strip() else "gpt-4o"
 
     last_error: Exception | None = None
     for attempt, delay in enumerate([0, 1, 2, 4]):
@@ -66,7 +88,7 @@ def analyze_frame(
             time.sleep(delay)
         try:
             response = client.chat.completions.create(
-                model="gpt-4o",
+                model=chosen_model,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {

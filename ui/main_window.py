@@ -32,6 +32,7 @@ class MainWindow(QMainWindow):
         self._settings = settings
         self._worker: PipelineWorker | None = None
         self._last_output_dir: Path | None = None
+        self._job_queue: list[JobConfig] = []
 
         self.setWindowTitle(self.tr("YouTube AI Frame Prompt Generator"))
         self.setMinimumSize(1200, 700)
@@ -130,8 +131,16 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     def _on_job_requested(self, config: JobConfig) -> None:
         if self._worker and self._worker.isRunning():
+            # Queue batch jobs
+            self._job_queue.append(config)
+            self._log_panel.log_info(
+                self.tr(f"Queued: {config.url} ({len(self._job_queue)} in queue)")
+            )
             return
 
+        self._start_job(config)
+
+    def _start_job(self, config: JobConfig) -> None:
         self._gallery.clear()
         self._log_panel.reset_progress()
         self._log_panel.log_info(self.tr(f"Starting job: {config.url}"))
@@ -142,6 +151,7 @@ class MainWindow(QMainWindow):
         self._worker.frame_ready.connect(self._on_frame_ready)
         self._worker.job_finished.connect(self._on_job_finished)
         self._worker.error_occurred.connect(self._on_error)
+        self._worker.metadata_ready.connect(self._on_metadata)
 
         self._input_panel.set_running(True)
         self.statusBar().showMessage(self.tr("Running…"))
@@ -169,8 +179,25 @@ class MainWindow(QMainWindow):
             self.tr(f"Frame {frame.index} | {frame.timestamp_label} | {frame.prompt[:60]}…")
         )
 
+    def _on_metadata(self, meta: dict) -> None:
+        """Log video metadata when available."""
+        parts = []
+        if "width" in meta and "height" in meta:
+            parts.append(f"{meta['width']}×{meta['height']}")
+        if meta.get("fps"):
+            parts.append(f"{meta['fps']} fps")
+        if meta.get("codec"):
+            parts.append(meta["codec"])
+        if meta.get("duration"):
+            mins = int(meta["duration"]) // 60
+            secs = int(meta["duration"]) % 60
+            parts.append(f"{mins}m{secs}s")
+        if meta.get("format_name"):
+            parts.append(meta["format_name"])
+        if parts:
+            self._log_panel.log_info(f"📹 Video: {' · '.join(parts)}")
+
     def _on_job_finished(self, result: JobResult) -> None:
-        self._input_panel.set_running(False)
         if result.success:
             msg = self.tr(f"Job completed — {len(result.frames)} frames")
             self._log_panel.log_info(msg)
@@ -179,6 +206,16 @@ class MainWindow(QMainWindow):
             msg = self.tr(f"Job finished with errors: {result.error_message}")
             self._log_panel.log_warning(msg)
             self.statusBar().showMessage(msg)
+
+        # Process next job in batch queue
+        if self._job_queue:
+            next_config = self._job_queue.pop(0)
+            self._log_panel.log_info(
+                self.tr(f"Starting next queued job… ({len(self._job_queue)} remaining)")
+            )
+            self._start_job(next_config)
+        else:
+            self._input_panel.set_running(False)
 
     def _on_error(self, message: str) -> None:
         self._input_panel.set_running(False)
@@ -196,6 +233,10 @@ class MainWindow(QMainWindow):
 
         api_key = self._settings.get_api_key()
         prompt_type = self._settings.get_prompt_type()
+        use_local = self._settings.get_use_local_model()
+        local_url = self._settings.get_local_model_url()
+        model_name = self._settings.get_model_name()
+        custom_prompt = self._settings.get_custom_system_prompt()
 
         class _Task(QRunnable):
             def __init__(self_, f: FrameResult) -> None:
@@ -205,7 +246,15 @@ class MainWindow(QMainWindow):
             @Slot()
             def run(self_) -> None:
                 try:
-                    new_prompt = analyze_frame(self_._frame.image_path, api_key, prompt_type)
+                    new_prompt = analyze_frame(
+                        self_._frame.image_path,
+                        api_key,
+                        prompt_type,
+                        use_local_model=use_local,
+                        local_model_url=local_url,
+                        model_name=model_name,
+                        custom_system_prompt=custom_prompt,
+                    )
                     new_result = FrameResult(
                         index=self_._frame.index,
                         timestamp_sec=self_._frame.timestamp_sec,

@@ -34,6 +34,7 @@ def _make_frames(frames_dir: Path, n: int) -> list[Path]:
 # ---------------------------------------------------------------------------
 # Pipeline.run — happy path
 # ---------------------------------------------------------------------------
+@patch("core.pipeline._get_video_metadata", return_value={})
 @patch("core.pipeline.write_summary_md")
 @patch("core.pipeline.write_results_json")
 @patch("core.pipeline.create_output_dir")
@@ -41,7 +42,7 @@ def _make_frames(frames_dir: Path, n: int) -> list[Path]:
 @patch("core.pipeline.extract_frames")
 @patch("core.pipeline.download_video")
 def test_pipeline_run_success(
-    mock_dl, mock_extract, mock_analyze, mock_create_dir, mock_json, mock_md, tmp_path
+    mock_dl, mock_extract, mock_analyze, mock_create_dir, mock_json, mock_md, mock_meta, tmp_path
 ):
     config = _make_config(tmp_path)
     out_dir = tmp_path / "output" / "vid_20260101_120000"
@@ -73,6 +74,7 @@ def test_pipeline_run_success(
     assert len(frame_calls) == 3
 
 
+@patch("core.pipeline._get_video_metadata", return_value={})
 @patch("core.pipeline.write_summary_md")
 @patch("core.pipeline.write_results_json")
 @patch("core.pipeline.create_output_dir")
@@ -80,7 +82,7 @@ def test_pipeline_run_success(
 @patch("core.pipeline.extract_frames")
 @patch("core.pipeline.download_video")
 def test_pipeline_stop_event_cancels(
-    mock_dl, mock_extract, mock_analyze, mock_create_dir, mock_json, mock_md, tmp_path
+    mock_dl, mock_extract, mock_analyze, mock_create_dir, mock_json, mock_md, mock_meta, tmp_path
 ):
     config = _make_config(tmp_path)
     out_dir = tmp_path / "output" / "vid_x"
@@ -110,9 +112,10 @@ def test_pipeline_stop_event_cancels(
     assert len(result.frames) == 0
 
 
+@patch("core.pipeline._get_video_metadata", return_value={})
 @patch("core.pipeline.create_output_dir")
 @patch("core.pipeline.download_video", side_effect=Exception("Network timeout"))
-def test_pipeline_download_error_captured(mock_dl, mock_create_dir, tmp_path):
+def test_pipeline_download_error_captured(mock_dl, mock_create_dir, mock_meta, tmp_path):
     config = _make_config(tmp_path)
     out_dir = tmp_path / "out"
     out_dir.mkdir(parents=True)
@@ -129,6 +132,7 @@ def test_pipeline_download_error_captured(mock_dl, mock_create_dir, tmp_path):
     assert "Network timeout" in result.error_message
 
 
+@patch("core.pipeline._get_video_metadata", return_value={})
 @patch("core.pipeline.write_summary_md")
 @patch("core.pipeline.write_results_json")
 @patch("core.pipeline.create_output_dir")
@@ -136,7 +140,7 @@ def test_pipeline_download_error_captured(mock_dl, mock_create_dir, tmp_path):
 @patch("core.pipeline.extract_frames")
 @patch("core.pipeline.download_video")
 def test_pipeline_max_frames_limit(
-    mock_dl, mock_extract, mock_analyze, mock_create_dir, mock_json, mock_md, tmp_path
+    mock_dl, mock_extract, mock_analyze, mock_create_dir, mock_json, mock_md, mock_meta, tmp_path
 ):
     config = JobConfig(
         url="https://youtube.com/watch?v=test",

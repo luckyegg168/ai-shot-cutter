@@ -71,5 +71,38 @@ class AppSettings:
         self._qs.setValue("language", value)
         self._qs.sync()
 
+    # --- Local model ---
+    def get_use_local_model(self) -> bool:
+        return self._qs.value("use_local_model", False, type=bool)
+
+    def set_use_local_model(self, value: bool) -> None:
+        self._qs.setValue("use_local_model", value)
+
+    def get_local_model_url(self) -> str:
+        return self._qs.value("local_model_url", "", type=str)
+
+    def set_local_model_url(self, value: str) -> None:
+        self._qs.setValue("local_model_url", value)
+
+    def get_model_name(self) -> str:
+        return self._qs.value("model_name", "", type=str)
+
+    def set_model_name(self, value: str) -> None:
+        self._qs.setValue("model_name", value)
+
+    # --- Custom system prompt ---
+    def get_custom_system_prompt(self) -> str:
+        return self._qs.value("custom_system_prompt", "", type=str)
+
+    def set_custom_system_prompt(self, value: str) -> None:
+        self._qs.setValue("custom_system_prompt", value)
+
+    # --- Blur threshold ---
+    def get_blur_threshold(self) -> float:
+        return float(self._qs.value("blur_threshold", 0.0, type=float))
+
+    def set_blur_threshold(self, value: float) -> None:
+        self._qs.setValue("blur_threshold", value)
+
     def sync(self) -> None:
         self._qs.sync()
