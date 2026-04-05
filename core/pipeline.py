@@ -66,6 +66,8 @@ class Pipeline:
                 output_root = named_dir
             else:
                 output_root = named_dir
+            # Update video_path to reflect the renamed directory
+            video_path = output_root / video_path.name
 
             frames_dir = output_root / "frames"
             prompts_dir = output_root / "prompts"

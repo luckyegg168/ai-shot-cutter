@@ -52,8 +52,8 @@ def download_video(
             total = d.get("total_bytes") or d.get("total_bytes_estimate") or 1
             downloaded = d.get("downloaded_bytes", 0)
             percent = int(downloaded / total * 100)
-            speed = d.get("speed_str", "?")
-            eta = d.get("eta_str", "?")
+            speed = d.get("_speed_str") or d.get("speed_str", "?")
+            eta = d.get("_eta_str") or d.get("eta_str", "?")
             if progress_cb:
                 progress_cb(percent, speed, eta)
         elif d.get("status") == "finished":
