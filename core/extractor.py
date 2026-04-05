@@ -2,11 +2,36 @@
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 import subprocess
 from pathlib import Path
 
 from .models import ExtractionError
+
+logger = logging.getLogger(__name__)
+
+# Hardware accelerators tried in priority order (Windows-first list).
+# Each entry: (hwaccel_name, extra_input_flags)
+_HWACCEL_CANDIDATES: list[tuple[str, list[str]]] = [
+    ("cuda",    ["-hwaccel", "cuda", "-hwaccel_output_format", "cuda"]),
+    ("d3d11va", ["-hwaccel", "d3d11va"]),
+    ("dxva2",   ["-hwaccel", "dxva2"]),
+]
+
+
+def _probe_hwaccels(ffmpeg: str) -> list[str]:
+    """Return hwaccel names that ffmpeg reports as available."""
+    try:
+        result = subprocess.run(
+            [ffmpeg, "-hide_banner", "-hwaccels"],
+            capture_output=True, text=True, timeout=5,
+        )
+        lines = result.stdout.splitlines()
+        # Output format: first line is header, rest are hwaccel names
+        return [ln.strip() for ln in lines[1:] if ln.strip()]
+    except Exception:
+        return []
 
 
 def _require_binary(name: str) -> str:
@@ -86,27 +111,56 @@ def extract_frames(
 
     output_pattern = str(output_dir / "frame_%04d.jpg")
 
-    cmd = [
-        ffmpeg,
-        "-i", str(video_path),
-        "-vf", f"fps=1/{interval_sec}",
-        "-q:v", "2",
-        "-y",           # overwrite without prompt
-        output_pattern,
-    ]
+    def _build_cmd(extra_input_flags: list[str]) -> list[str]:
+        return [
+            ffmpeg,
+            *extra_input_flags,
+            "-i", str(video_path),
+            "-vf", f"fps=1/{interval_sec}",
+            "-q:v", "2",
+            "-y",
+            output_pattern,
+        ]
 
-    try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=600,
+    # Build ordered list of commands to try: GPU candidates first, then CPU.
+    available_hwaccels = _probe_hwaccels(ffmpeg)
+    candidates: list[tuple[str, list[str]]] = []
+    for name, flags in _HWACCEL_CANDIDATES:
+        if name in available_hwaccels:
+            candidates.append((name, flags))
+    candidates.append(("cpu", []))   # always append CPU fallback
+
+    last_error = ""
+    for decoder_name, extra_flags in candidates:
+        cmd = _build_cmd(extra_flags)
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=600,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise ExtractionError("ffmpeg timed out after 10 minutes") from exc
+
+        if result.returncode == 0:
+            if decoder_name != "cpu":
+                logger.info("Frame extraction using hardware decoder: %s", decoder_name)
+            else:
+                if last_error:
+                    logger.warning(
+                        "GPU decode failed (%s), fell back to CPU.", last_error[:120]
+                    )
+                logger.info("Frame extraction using CPU decoder")
+            break
+
+        last_error = result.stderr.strip()
+        logger.debug(
+            "hwaccel '%s' failed (rc=%d), trying next. stderr: %s",
+            decoder_name, result.returncode, last_error[:200],
         )
-    except subprocess.TimeoutExpired as exc:
-        raise ExtractionError("ffmpeg timed out after 10 minutes") from exc
-
-    if result.returncode != 0:
-        raise ExtractionError(f"ffmpeg error:\n{result.stderr.strip()}")
+    else:
+        raise ExtractionError(f"ffmpeg error:\n{last_error}")
 
     frames = sorted(output_dir.glob("frame_*.jpg"))
     if not frames:
