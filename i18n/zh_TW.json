@@ -157,5 +157,75 @@
   "No frames available to save.": "目前沒有可儲存的影格。",
   "Project saved": "專案已儲存",
   "Project loaded": "專案已讀取",
-  "Use gallery to view loaded frames.": "使用畫廊檢視已載入的影格。"
+  "Use gallery to view loaded frames.": "使用畫廊檢視已載入的影格。",
+
+  "11. Video Speed Change": "11. 影片速度變更",
+  "Speed:": "速度：",
+  "Apply Speed": "套用速度",
+  "Save Speed-Changed Video": "儲存變速影片",
+  "Speed changed": "速度已變更",
+
+  "12. Frame Rotate / Flip": "12. 影格旋轉 / 翻轉",
+  "Operation:": "操作：",
+  "90° CW": "順時針 90°",
+  "90° CCW": "逆時針 90°",
+  "180°": "180°",
+  "Horizontal Flip": "水平翻轉",
+  "Vertical Flip": "垂直翻轉",
+  "Rotate / Flip": "旋轉 / 翻轉",
+  "Save Rotated Frame": "儲存旋轉後影格",
+  "Frame rotated": "影格已旋轉",
+
+  "13. Video Thumbnail": "13. 影片縮圖",
+  "At (sec):": "時間點（秒）：",
+  "Generate Thumbnail": "產生縮圖",
+  "Save Thumbnail": "儲存縮圖",
+  "Thumbnail generated": "縮圖已產生",
+
+  "14. Contact Sheet": "14. 影格總覽表",
+  "Columns:": "欄數：",
+  "Tile width:": "每格寬度：",
+  "Create Sheet": "建立總覽表",
+  "Save Contact Sheet": "儲存影格總覽表",
+  "Contact sheet created": "影格總覽表已建立",
+
+  "15. Video Info": "15. 影片資訊",
+  "Show Video Info": "顯示影片資訊",
+  "Video Information:": "影片資訊：",
+
+  "16. Frame Crop": "16. 影格裁切",
+  "Height:": "高度：",
+  "Crop Frame": "裁切影格",
+  "Save Cropped Frame": "儲存裁切後影格",
+  "Frame cropped": "影格已裁切",
+
+  "17. Reverse Video": "17. 倒放影片",
+  "Save Reversed Video": "儲存倒放影片",
+  "Video reversed": "影片已倒放",
+
+  "18. Extract All Frames": "18. 擷取所有影格",
+  "Max frames (0=all):": "最大影格數（0=全部）：",
+  "Extract All": "擷取全部",
+  "Select Output Folder for Frames": "選擇影格輸出資料夾",
+  "Frames extracted": "影格已擷取",
+
+  "19. Frame Deduplication": "19. 影格去重",
+  "Find Duplicates": "尋找重複影格",
+  "No duplicates found": "未找到重複影格",
+  "Duplicate frame pairs found": "發現重複影格對",
+
+  "20. Merge Videos": "20. 合併影片",
+  "No files selected": "尚未選取檔案",
+  "Add Videos": "新增影片",
+  "Merge": "合併",
+  "Select Videos to Merge": "選擇要合併的影片",
+  "Save Merged Video": "儲存合併後影片",
+  "Videos merged": "影片已合併",
+  "Please add at least 2 videos.": "請至少選取 2 支影片。",
+
+  "General": "一般",
+  "API & Model": "API 與模型",
+  "Frame Processing": "影格處理",
+  "Appearance": "外觀",
+  "Saving frame manifest...": "儲存影格清單中..."
 }

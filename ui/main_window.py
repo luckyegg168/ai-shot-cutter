@@ -20,6 +20,7 @@ from ui.gallery_widget import GalleryWidget
 from ui.input_panel import InputPanel
 from ui.log_panel import LogPanel
 from ui.prompt_panel import PromptPanel
+from ui.settings_panel import SettingsPanel
 from ui.tools_panel import ToolsPanel
 from utils.settings import AppSettings
 from workers.pipeline_worker import PipelineWorker
@@ -89,6 +90,13 @@ class MainWindow(QMainWindow):
         self._tools_panel.set_all_frames_getter(lambda: self._gallery.get_all_frames())
         self._tools_panel.set_logger(self._log_panel.log_info)
         self._tabs.addTab(self._tools_panel, self.tr("Tools"))
+
+        # ── Settings tab ─────────────────────────────────────────────
+        self._settings_panel = SettingsPanel(self._settings)
+        self._tabs.addTab(self._settings_panel, self.tr("Settings"))
+
+        # Wire settings panel to input panel for validation & job creation
+        self._input_panel.set_settings_panel(self._settings_panel)
         right_splitter.addWidget(self._log_panel)
         right_splitter.setStretchFactor(0, 1)
         right_splitter.setStretchFactor(1, 0)

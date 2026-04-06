@@ -153,5 +153,75 @@
   "No frames available to save.": "No frames available to save.",
   "Project saved": "Project saved",
   "Project loaded": "Project loaded",
-  "Use gallery to view loaded frames.": "Use gallery to view loaded frames."
+  "Use gallery to view loaded frames.": "Use gallery to view loaded frames.",
+
+  "11. Video Speed Change": "11. Video Speed Change",
+  "Speed:": "Speed:",
+  "Apply Speed": "Apply Speed",
+  "Save Speed-Changed Video": "Save Speed-Changed Video",
+  "Speed changed": "Speed changed",
+
+  "12. Frame Rotate / Flip": "12. Frame Rotate / Flip",
+  "Operation:": "Operation:",
+  "90° CW": "90° CW",
+  "90° CCW": "90° CCW",
+  "180°": "180°",
+  "Horizontal Flip": "Horizontal Flip",
+  "Vertical Flip": "Vertical Flip",
+  "Rotate / Flip": "Rotate / Flip",
+  "Save Rotated Frame": "Save Rotated Frame",
+  "Frame rotated": "Frame rotated",
+
+  "13. Video Thumbnail": "13. Video Thumbnail",
+  "At (sec):": "At (sec):",
+  "Generate Thumbnail": "Generate Thumbnail",
+  "Save Thumbnail": "Save Thumbnail",
+  "Thumbnail generated": "Thumbnail generated",
+
+  "14. Contact Sheet": "14. Contact Sheet",
+  "Columns:": "Columns:",
+  "Tile width:": "Tile width:",
+  "Create Sheet": "Create Sheet",
+  "Save Contact Sheet": "Save Contact Sheet",
+  "Contact sheet created": "Contact sheet created",
+
+  "15. Video Info": "15. Video Info",
+  "Show Video Info": "Show Video Info",
+  "Video Information:": "Video Information:",
+
+  "16. Frame Crop": "16. Frame Crop",
+  "Height:": "Height:",
+  "Crop Frame": "Crop Frame",
+  "Save Cropped Frame": "Save Cropped Frame",
+  "Frame cropped": "Frame cropped",
+
+  "17. Reverse Video": "17. Reverse Video",
+  "Save Reversed Video": "Save Reversed Video",
+  "Video reversed": "Video reversed",
+
+  "18. Extract All Frames": "18. Extract All Frames",
+  "Max frames (0=all):": "Max frames (0=all):",
+  "Extract All": "Extract All",
+  "Select Output Folder for Frames": "Select Output Folder for Frames",
+  "Frames extracted": "Frames extracted",
+
+  "19. Frame Deduplication": "19. Frame Deduplication",
+  "Find Duplicates": "Find Duplicates",
+  "No duplicates found": "No duplicates found",
+  "Duplicate frame pairs found": "Duplicate frame pairs found",
+
+  "20. Merge Videos": "20. Merge Videos",
+  "No files selected": "No files selected",
+  "Add Videos": "Add Videos",
+  "Merge": "Merge",
+  "Select Videos to Merge": "Select Videos to Merge",
+  "Save Merged Video": "Save Merged Video",
+  "Videos merged": "Videos merged",
+  "Please add at least 2 videos.": "Please add at least 2 videos.",
+
+  "General": "General",
+  "API & Model": "API & Model",
+  "Frame Processing": "Frame Processing",
+  "Appearance": "Appearance",
+  "Saving frame manifest...": "Saving frame manifest..."
 }

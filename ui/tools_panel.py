@@ -1,4 +1,4 @@
-"""ToolsPanel — 10 practical video editing tools in a dedicated tab."""
+"""ToolsPanel — 20 practical video editing tools in a dedicated tab."""
 from __future__ import annotations
 
 import shutil
@@ -30,7 +30,7 @@ from core.models import ExtractionError, FrameResult
 
 
 class ToolsPanel(QWidget):
-    """Video editing tools tab — 10 practical features."""
+    """Video editing tools tab — 20 practical features."""
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -240,6 +240,166 @@ class ToolsPanel(QWidget):
         g10_lay.addWidget(btn_load_proj)
         g10_lay.addStretch()
         layout.addWidget(g10)
+
+        # ── 11. Video Speed Change ────────────────────────────────────
+        g11 = QGroupBox(self.tr("11. Video Speed Change"))
+        g11_lay = QHBoxLayout(g11)
+        g11_lay.addWidget(QLabel(self.tr("Speed:")))
+        self._speed_spin = QDoubleSpinBox()
+        self._speed_spin.setRange(0.25, 4.0)
+        self._speed_spin.setValue(2.0)
+        self._speed_spin.setSingleStep(0.25)
+        g11_lay.addWidget(self._speed_spin)
+        btn_speed = QPushButton(self.tr("Apply Speed"))
+        btn_speed.clicked.connect(self._on_change_speed)
+        g11_lay.addWidget(btn_speed)
+        g11_lay.addStretch()
+        layout.addWidget(g11)
+
+        # ── 12. Frame Rotate / Flip ───────────────────────────────────
+        g12 = QGroupBox(self.tr("12. Frame Rotate / Flip"))
+        g12_lay = QHBoxLayout(g12)
+        g12_lay.addWidget(QLabel(self.tr("Operation:")))
+        self._rotate_combo = QComboBox()
+        for label, val in [
+            (self.tr("90° CW"), "90cw"),
+            (self.tr("90° CCW"), "90ccw"),
+            (self.tr("180°"), "180"),
+            (self.tr("Horizontal Flip"), "hflip"),
+            (self.tr("Vertical Flip"), "vflip"),
+        ]:
+            self._rotate_combo.addItem(label, val)
+        g12_lay.addWidget(self._rotate_combo)
+        btn_rotate = QPushButton(self.tr("Rotate / Flip"))
+        btn_rotate.clicked.connect(self._on_rotate_frame)
+        g12_lay.addWidget(btn_rotate)
+        g12_lay.addStretch()
+        layout.addWidget(g12)
+
+        # ── 13. Video Thumbnail Generator ─────────────────────────────
+        g13 = QGroupBox(self.tr("13. Video Thumbnail"))
+        g13_lay = QHBoxLayout(g13)
+        g13_lay.addWidget(QLabel(self.tr("At (sec):")))
+        self._thumb_sec = QDoubleSpinBox()
+        self._thumb_sec.setRange(0, 99999)
+        self._thumb_sec.setValue(1.0)
+        self._thumb_sec.setDecimals(1)
+        g13_lay.addWidget(self._thumb_sec)
+        g13_lay.addWidget(QLabel(self.tr("Width:")))
+        self._thumb_width = QSpinBox()
+        self._thumb_width.setRange(120, 3840)
+        self._thumb_width.setValue(640)
+        self._thumb_width.setSingleStep(40)
+        g13_lay.addWidget(self._thumb_width)
+        btn_thumb = QPushButton(self.tr("Generate Thumbnail"))
+        btn_thumb.clicked.connect(self._on_generate_thumbnail)
+        g13_lay.addWidget(btn_thumb)
+        g13_lay.addStretch()
+        layout.addWidget(g13)
+
+        # ── 14. Frame Mosaic / Contact Sheet ──────────────────────────
+        g14 = QGroupBox(self.tr("14. Contact Sheet"))
+        g14_lay = QHBoxLayout(g14)
+        g14_lay.addWidget(QLabel(self.tr("Columns:")))
+        self._mosaic_cols = QSpinBox()
+        self._mosaic_cols.setRange(2, 10)
+        self._mosaic_cols.setValue(4)
+        g14_lay.addWidget(self._mosaic_cols)
+        g14_lay.addWidget(QLabel(self.tr("Tile width:")))
+        self._mosaic_tile = QSpinBox()
+        self._mosaic_tile.setRange(120, 960)
+        self._mosaic_tile.setValue(320)
+        self._mosaic_tile.setSingleStep(40)
+        g14_lay.addWidget(self._mosaic_tile)
+        btn_mosaic = QPushButton(self.tr("Create Sheet"))
+        btn_mosaic.clicked.connect(self._on_contact_sheet)
+        g14_lay.addWidget(btn_mosaic)
+        g14_lay.addStretch()
+        layout.addWidget(g14)
+
+        # ── 15. Video Info / Stats ────────────────────────────────────
+        g15 = QGroupBox(self.tr("15. Video Info"))
+        g15_lay = QHBoxLayout(g15)
+        btn_info = QPushButton(self.tr("Show Video Info"))
+        btn_info.clicked.connect(self._on_video_info)
+        g15_lay.addWidget(btn_info)
+        g15_lay.addStretch()
+        layout.addWidget(g15)
+
+        # ── 16. Frame Crop ────────────────────────────────────────────
+        g16 = QGroupBox(self.tr("16. Frame Crop"))
+        g16_lay = QGridLayout(g16)
+        g16_lay.addWidget(QLabel("X:"), 0, 0)
+        self._crop_x = QSpinBox(); self._crop_x.setRange(0, 9999)
+        g16_lay.addWidget(self._crop_x, 0, 1)
+        g16_lay.addWidget(QLabel("Y:"), 0, 2)
+        self._crop_y = QSpinBox(); self._crop_y.setRange(0, 9999)
+        g16_lay.addWidget(self._crop_y, 0, 3)
+        g16_lay.addWidget(QLabel(self.tr("Width:")), 1, 0)
+        self._crop_w = QSpinBox(); self._crop_w.setRange(1, 9999); self._crop_w.setValue(640)
+        g16_lay.addWidget(self._crop_w, 1, 1)
+        g16_lay.addWidget(QLabel(self.tr("Height:")), 1, 2)
+        self._crop_h = QSpinBox(); self._crop_h.setRange(1, 9999); self._crop_h.setValue(480)
+        g16_lay.addWidget(self._crop_h, 1, 3)
+        btn_crop = QPushButton(self.tr("Crop Frame"))
+        btn_crop.clicked.connect(self._on_crop_frame)
+        g16_lay.addWidget(btn_crop, 2, 0, 1, 4)
+        layout.addWidget(g16)
+
+        # ── 17. Reverse Video ─────────────────────────────────────────
+        g17 = QGroupBox(self.tr("17. Reverse Video"))
+        g17_lay = QHBoxLayout(g17)
+        btn_reverse = QPushButton(self.tr("Reverse Video"))
+        btn_reverse.clicked.connect(self._on_reverse_video)
+        g17_lay.addWidget(btn_reverse)
+        g17_lay.addStretch()
+        layout.addWidget(g17)
+
+        # ── 18. Extract All Frames ────────────────────────────────────
+        g18 = QGroupBox(self.tr("18. Extract All Frames"))
+        g18_lay = QHBoxLayout(g18)
+        g18_lay.addWidget(QLabel(self.tr("Max frames (0=all):")))
+        self._all_frames_max = QSpinBox()
+        self._all_frames_max.setRange(0, 99999)
+        self._all_frames_max.setValue(0)
+        g18_lay.addWidget(self._all_frames_max)
+        btn_all_frames = QPushButton(self.tr("Extract All"))
+        btn_all_frames.clicked.connect(self._on_extract_all_frames)
+        g18_lay.addWidget(btn_all_frames)
+        g18_lay.addStretch()
+        layout.addWidget(g18)
+
+        # ── 19. Frame Deduplication ───────────────────────────────────
+        g19 = QGroupBox(self.tr("19. Frame Deduplication"))
+        g19_lay = QHBoxLayout(g19)
+        g19_lay.addWidget(QLabel(self.tr("Threshold:")))
+        self._dedup_threshold = QDoubleSpinBox()
+        self._dedup_threshold.setRange(0.5, 1.0)
+        self._dedup_threshold.setValue(0.95)
+        self._dedup_threshold.setSingleStep(0.01)
+        g19_lay.addWidget(self._dedup_threshold)
+        btn_dedup = QPushButton(self.tr("Find Duplicates"))
+        btn_dedup.clicked.connect(self._on_find_duplicates)
+        g19_lay.addWidget(btn_dedup)
+        g19_lay.addStretch()
+        layout.addWidget(g19)
+
+        # ── 20. Merge Videos ──────────────────────────────────────────
+        g20 = QGroupBox(self.tr("20. Merge Videos"))
+        g20_lay = QVBoxLayout(g20)
+        self._merge_list_label = QLabel(self.tr("No files selected"))
+        g20_lay.addWidget(self._merge_list_label)
+        h20 = QHBoxLayout()
+        btn_merge_add = QPushButton(self.tr("Add Videos"))
+        btn_merge_add.clicked.connect(self._on_merge_add_files)
+        h20.addWidget(btn_merge_add)
+        btn_merge_go = QPushButton(self.tr("Merge"))
+        btn_merge_go.clicked.connect(self._on_merge_videos)
+        h20.addWidget(btn_merge_go)
+        h20.addStretch()
+        g20_lay.addLayout(h20)
+        self._merge_file_list: list[Path] = []
+        layout.addWidget(g20)
 
         # ── Result area ───────────────────────────────────────────────
         self._result_label = QLabel()
@@ -466,4 +626,201 @@ class ToolsPanel(QWidget):
             if hasattr(self, "project_loaded") and callable(self.project_loaded):
                 self.project_loaded(config_dict, frames)
         except Exception as e:
+            QMessageBox.critical(self, self.tr("Error"), str(e))
+
+    # ------------------------------------------------------------------
+    # Slot implementations — tools 11-20
+    # ------------------------------------------------------------------
+    def _on_change_speed(self) -> None:
+        vp = self._require_video()
+        if not vp:
+            return
+        dest, _ = QFileDialog.getSaveFileName(
+            self, self.tr("Save Speed-Changed Video"), "speed.mp4", "Video (*.mp4)"
+        )
+        if not dest:
+            return
+        from core.tools import change_video_speed
+        try:
+            out = change_video_speed(vp, Path(dest), self._speed_spin.value())
+            self._result_label.setText(self.tr("Speed changed") + f": {out}")
+            self._log(f"Video speed changed: {self._speed_spin.value()}x → {out}")
+        except ExtractionError as e:
+            QMessageBox.critical(self, self.tr("Error"), str(e))
+
+    def _on_rotate_frame(self) -> None:
+        frames = self._get_frames()
+        if not frames:
+            QMessageBox.warning(self, self.tr("No Frames"), self.tr("No frames available."))
+            return
+        src_path = frames[0].image_path
+        dest, _ = QFileDialog.getSaveFileName(
+            self, self.tr("Save Rotated Frame"), "rotated.jpg", "Images (*.jpg)"
+        )
+        if not dest:
+            return
+        from core.tools import rotate_frame
+        try:
+            out = rotate_frame(src_path, Path(dest), self._rotate_combo.currentData())
+            self._result_label.setText(self.tr("Frame rotated") + f": {out}")
+            self._log(f"Frame rotated/flipped: {out}")
+        except ExtractionError as e:
+            QMessageBox.critical(self, self.tr("Error"), str(e))
+
+    def _on_generate_thumbnail(self) -> None:
+        vp = self._require_video()
+        if not vp:
+            return
+        dest, _ = QFileDialog.getSaveFileName(
+            self, self.tr("Save Thumbnail"), "thumbnail.jpg", "Images (*.jpg)"
+        )
+        if not dest:
+            return
+        from core.tools import generate_thumbnail
+        try:
+            out = generate_thumbnail(vp, Path(dest), self._thumb_sec.value(), self._thumb_width.value())
+            self._result_label.setText(self.tr("Thumbnail generated") + f": {out}")
+            self._log(f"Thumbnail generated: {out}")
+        except ExtractionError as e:
+            QMessageBox.critical(self, self.tr("Error"), str(e))
+
+    def _on_contact_sheet(self) -> None:
+        frames = self._get_frames()
+        if not frames:
+            QMessageBox.warning(self, self.tr("No Frames"), self.tr("No frames available."))
+            return
+        dest, _ = QFileDialog.getSaveFileName(
+            self, self.tr("Save Contact Sheet"), "contact_sheet.jpg", "Images (*.jpg)"
+        )
+        if not dest:
+            return
+        from core.tools import create_contact_sheet
+        try:
+            paths = [f.image_path for f in frames]
+            out = create_contact_sheet(
+                paths, Path(dest), self._mosaic_cols.value(), self._mosaic_tile.value()
+            )
+            self._result_label.setText(self.tr("Contact sheet created") + f": {out}")
+            self._log(f"Contact sheet: {len(frames)} frames → {out}")
+        except ExtractionError as e:
+            QMessageBox.critical(self, self.tr("Error"), str(e))
+
+    def _on_video_info(self) -> None:
+        vp = self._require_video()
+        if not vp:
+            return
+        from core.tools import get_video_info
+        try:
+            info = get_video_info(vp)
+            lines = [self.tr("Video Information:")]
+            for k, v in info.items():
+                lines.append(f"  {k}: {v}")
+            self._result_label.setText("\n".join(lines))
+            self._log(f"Video info retrieved: {vp.name}")
+        except ExtractionError as e:
+            QMessageBox.critical(self, self.tr("Error"), str(e))
+
+    def _on_crop_frame(self) -> None:
+        frames = self._get_frames()
+        if not frames:
+            QMessageBox.warning(self, self.tr("No Frames"), self.tr("No frames available."))
+            return
+        src_path = frames[0].image_path
+        dest, _ = QFileDialog.getSaveFileName(
+            self, self.tr("Save Cropped Frame"), "cropped.jpg", "Images (*.jpg)"
+        )
+        if not dest:
+            return
+        from core.tools import crop_frame
+        try:
+            out = crop_frame(
+                src_path, Path(dest),
+                self._crop_x.value(), self._crop_y.value(),
+                self._crop_w.value(), self._crop_h.value(),
+            )
+            self._result_label.setText(self.tr("Frame cropped") + f": {out}")
+            self._log(f"Frame cropped: {out}")
+        except ExtractionError as e:
+            QMessageBox.critical(self, self.tr("Error"), str(e))
+
+    def _on_reverse_video(self) -> None:
+        vp = self._require_video()
+        if not vp:
+            return
+        dest, _ = QFileDialog.getSaveFileName(
+            self, self.tr("Save Reversed Video"), "reversed.mp4", "Video (*.mp4)"
+        )
+        if not dest:
+            return
+        from core.tools import reverse_video
+        try:
+            out = reverse_video(vp, Path(dest))
+            self._result_label.setText(self.tr("Video reversed") + f": {out}")
+            self._log(f"Video reversed: {out}")
+        except ExtractionError as e:
+            QMessageBox.critical(self, self.tr("Error"), str(e))
+
+    def _on_extract_all_frames(self) -> None:
+        vp = self._require_video()
+        if not vp:
+            return
+        dest_dir = QFileDialog.getExistingDirectory(
+            self, self.tr("Select Output Folder for Frames")
+        )
+        if not dest_dir:
+            return
+        from core.tools import extract_all_frames
+        try:
+            out_frames = extract_all_frames(vp, Path(dest_dir), self._all_frames_max.value())
+            self._result_label.setText(
+                self.tr("Frames extracted") + f": {len(out_frames)} → {dest_dir}"
+            )
+            self._log(f"All frames extracted: {len(out_frames)} frames")
+        except ExtractionError as e:
+            QMessageBox.critical(self, self.tr("Error"), str(e))
+
+    def _on_find_duplicates(self) -> None:
+        frames = self._get_frames()
+        if not frames:
+            QMessageBox.warning(self, self.tr("No Frames"), self.tr("No frames available."))
+            return
+        from core.tools import find_duplicate_frames
+        paths = [f.image_path for f in frames]
+        dups = find_duplicate_frames(paths, self._dedup_threshold.value())
+        if not dups:
+            self._result_label.setText(self.tr("No duplicates found"))
+            self._log("Dedup: no duplicates found")
+            return
+        lines = [self.tr("Duplicate frame pairs found") + f": {len(dups)}"]
+        for a, b, sim in dups[:20]:
+            lines.append(f"  Frame {a+1} ↔ {b+1}  (similarity: {sim:.3f})")
+        if len(dups) > 20:
+            lines.append("  …")
+        self._result_label.setText("\n".join(lines))
+        self._log(f"Dedup: {len(dups)} duplicate pairs found")
+
+    def _on_merge_add_files(self) -> None:
+        files, _ = QFileDialog.getOpenFileNames(
+            self, self.tr("Select Videos to Merge"), "", "Video (*.mp4 *.mkv *.webm *.avi)"
+        )
+        if files:
+            self._merge_file_list = [Path(f) for f in files]
+            names = [Path(f).name for f in files]
+            self._merge_list_label.setText(", ".join(names))
+
+    def _on_merge_videos(self) -> None:
+        if len(self._merge_file_list) < 2:
+            QMessageBox.warning(self, self.tr("Error"), self.tr("Please add at least 2 videos."))
+            return
+        dest, _ = QFileDialog.getSaveFileName(
+            self, self.tr("Save Merged Video"), "merged.mp4", "Video (*.mp4)"
+        )
+        if not dest:
+            return
+        from core.tools import merge_videos
+        try:
+            out = merge_videos(self._merge_file_list, Path(dest))
+            self._result_label.setText(self.tr("Videos merged") + f": {out}")
+            self._log(f"Videos merged: {len(self._merge_file_list)} → {out}")
+        except ExtractionError as e:
             QMessageBox.critical(self, self.tr("Error"), str(e))

@@ -36,19 +36,29 @@ def test_input_panel_validation(qapp, tmp_path):
 
     settings = AppSettings()
     panel = InputPanel(settings)
+
+    # Wire a mock SettingsPanel so _validate reads API key from it
+    mock_sp = MagicMock()
+    mock_sp.is_local_model.return_value = False
+    mock_sp.get_api_key.return_value = "sk-valid-key"
+    mock_sp.settings_changed = MagicMock()  # prevent Signal.connect crash
+    panel.set_settings_panel(mock_sp)
     panel.show()
 
     # Empty URL → disabled
     panel._url_edit.setPlainText("")
-    panel._api_edit.setText("sk-valid")
     panel._validate()
     assert not panel._btn_start.isEnabled()
 
     # Valid URL + key → enabled
     panel._url_edit.setPlainText("https://youtube.com/watch?v=dQw4w9WgXcQ")
-    panel._api_edit.setText("sk-valid-key")
     panel._validate()
     assert panel._btn_start.isEnabled()
+
+    # No API key → disabled
+    mock_sp.get_api_key.return_value = ""
+    panel._validate()
+    assert not panel._btn_start.isEnabled()
 
     panel.close()
 

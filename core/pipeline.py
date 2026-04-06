@@ -1,4 +1,12 @@
-"""Pipeline orchestrator — pure Python, no Qt imports."""
+"""Pipeline orchestrator — pure Python, no Qt imports.
+
+Flow:
+  1. Create output directory
+  2. Download video
+  3. Extract frames → save intermediate manifest
+  4. Vision analysis (per-frame) → save prompts
+  5. Write final results (JSON + summary.md)
+"""
 from __future__ import annotations
 
 import json
@@ -155,6 +163,20 @@ class Pipeline:
             if total == 0:
                 result.error_message = "No frames extracted"
                 return result
+
+            # --- Step 3.5: save intermediate frame manifest ---
+            on_progress(0, total, "Saving frame manifest...")
+            manifest = {
+                "video_id": video_id,
+                "video_path": str(video_path),
+                "frame_count": total,
+                "interval_sec": config.interval_sec,
+                "frames": [str(f) for f in raw_frames],
+            }
+            manifest_path = output_root / "frames_manifest.json"
+            manifest_path.write_text(
+                json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
 
             # --- Step 4: vision loop ---
             duration_map = _build_timestamp_map(raw_frames, config.interval_sec)

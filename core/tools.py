@@ -1,16 +1,26 @@
 """Video editing tools — pure Python, no Qt imports.
 
-Ten practical features for video editing workflow:
-1. Scene change detection (ffmpeg scene filter)
-2. Video trimming (start/end time)
-3. Frame comparison (side-by-side image)
-4. GIF preview export (from selected frames)
-5. Audio extraction (mp3/wav)
-6. Watermark overlay (text or image)
-7. Auto best-frame selection (sharpness scoring)
-8. SRT subtitle export (from prompt results)
-9. Batch prompt template rendering
+Twenty practical features for video editing workflow:
+1.  Scene change detection (ffmpeg scene filter)
+2.  Video trimming (start/end time)
+3.  Frame comparison (side-by-side image)
+4.  GIF preview export (from selected frames)
+5.  Audio extraction (mp3/wav)
+6.  Watermark overlay (text or image)
+7.  Auto best-frame selection (sharpness scoring)
+8.  SRT subtitle export (from prompt results)
+9.  Batch prompt template rendering
 10. Project save/load (JSON session)
+11. Video speed change (speed up / slow down)
+12. Frame rotate / flip
+13. Video thumbnail generator
+14. Frame mosaic / contact sheet
+15. Video info / stats
+16. Frame crop
+17. Reverse video
+18. Extract all frames (full FPS)
+19. Frame deduplication
+20. Merge (concatenate) videos
 """
 from __future__ import annotations
 
@@ -434,3 +444,446 @@ def load_project(filepath: Path) -> tuple[dict, list[FrameResult]]:
             prompt=fd["prompt"],
         ))
     return config_dict, frames
+
+
+# ─────────────────────────────────────────────────────────────────────
+# 11. Video speed change
+# ─────────────────────────────────────────────────────────────────────
+def change_video_speed(
+    video_path: Path,
+    output_path: Path,
+    speed: float = 2.0,
+) -> Path:
+    """Change video playback speed.
+
+    Args:
+        video_path: Source video.
+        output_path: Output video path.
+        speed: Multiplier (2.0 = 2× faster, 0.5 = half speed).
+
+    Returns:
+        Path to the output video.
+    """
+    if speed <= 0:
+        raise ExtractionError("Speed must be > 0")
+    ffmpeg = _require_ffmpeg()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    pts = 1.0 / speed
+    atempo = speed
+    # ffmpeg atempo only supports 0.5–2.0; chain if needed
+    atempo_filters: list[str] = []
+    remaining = atempo
+    while remaining > 2.0:
+        atempo_filters.append("atempo=2.0")
+        remaining /= 2.0
+    while remaining < 0.5:
+        atempo_filters.append("atempo=0.5")
+        remaining /= 0.5
+    atempo_filters.append(f"atempo={remaining:.4f}")
+    af = ",".join(atempo_filters)
+    cmd = [
+        ffmpeg, "-y",
+        "-i", str(video_path),
+        "-vf", f"setpts={pts:.4f}*PTS",
+        "-af", af,
+        str(output_path),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+    if proc.returncode != 0:
+        raise ExtractionError(f"Speed change failed: {proc.stderr[:300]}")
+    return output_path
+
+
+# ─────────────────────────────────────────────────────────────────────
+# 12. Frame rotate / flip
+# ─────────────────────────────────────────────────────────────────────
+def rotate_frame(
+    image_path: Path,
+    output_path: Path,
+    rotation: str = "90cw",
+) -> Path:
+    """Rotate or flip a frame image.
+
+    Args:
+        image_path: Source image.
+        output_path: Output image path.
+        rotation: One of "90cw", "90ccw", "180", "hflip", "vflip".
+
+    Returns:
+        Path to the rotated image.
+    """
+    ffmpeg = _require_ffmpeg()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    vf_map = {
+        "90cw": "transpose=1",
+        "90ccw": "transpose=2",
+        "180": "transpose=1,transpose=1",
+        "hflip": "hflip",
+        "vflip": "vflip",
+    }
+    vf = vf_map.get(rotation)
+    if not vf:
+        raise ExtractionError(f"Unknown rotation: {rotation}")
+    cmd = [
+        ffmpeg, "-y",
+        "-i", str(image_path),
+        "-vf", vf,
+        "-q:v", "2",
+        str(output_path),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    if proc.returncode != 0:
+        raise ExtractionError(f"Rotate failed: {proc.stderr[:300]}")
+    return output_path
+
+
+# ─────────────────────────────────────────────────────────────────────
+# 13. Video thumbnail generator
+# ─────────────────────────────────────────────────────────────────────
+def generate_thumbnail(
+    video_path: Path,
+    output_path: Path,
+    timestamp_sec: float = 1.0,
+    width: int = 640,
+) -> Path:
+    """Extract a thumbnail from video at a given timestamp.
+
+    Args:
+        video_path: Source video.
+        output_path: Output image path.
+        timestamp_sec: Position in the video (seconds).
+        width: Thumbnail width (height auto-scaled).
+
+    Returns:
+        Path to the thumbnail.
+    """
+    ffmpeg = _require_ffmpeg()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        ffmpeg, "-y",
+        "-ss", str(timestamp_sec),
+        "-i", str(video_path),
+        "-vf", f"scale={width}:-1",
+        "-frames:v", "1",
+        "-q:v", "2",
+        str(output_path),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    if proc.returncode != 0:
+        raise ExtractionError(f"Thumbnail failed: {proc.stderr[:300]}")
+    if not output_path.exists():
+        raise ExtractionError("Thumbnail output not found")
+    return output_path
+
+
+# ─────────────────────────────────────────────────────────────────────
+# 14. Frame mosaic / contact sheet
+# ─────────────────────────────────────────────────────────────────────
+def create_contact_sheet(
+    frame_paths: Sequence[Path],
+    output_path: Path,
+    columns: int = 4,
+    tile_width: int = 320,
+) -> Path:
+    """Create a contact sheet (mosaic) from a list of frames.
+
+    Args:
+        frame_paths: Ordered list of frame image paths.
+        output_path: Output image path.
+        columns: Number of columns in the grid.
+        tile_width: Width of each tile (height auto-scaled).
+
+    Returns:
+        Path to the contact sheet image.
+    """
+    if not frame_paths:
+        raise ExtractionError("No frames provided for contact sheet")
+    ffmpeg = _require_ffmpeg()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    n = len(frame_paths)
+    cols = min(columns, n)
+    rows = (n + cols - 1) // cols
+    # Build ffmpeg complex filter
+    inputs: list[str] = []
+    filter_parts: list[str] = []
+    for i, fp in enumerate(frame_paths):
+        inputs.extend(["-i", str(fp)])
+        filter_parts.append(f"[{i}:v]scale={tile_width}:-1:force_original_aspect_ratio=decrease,"
+                            f"pad={tile_width}:{tile_width}*ih/iw:(ow-iw)/2:(oh-ih)/2[t{i}];")
+    # Build xstack layout
+    layout_parts: list[str] = []
+    for i in range(n):
+        col = i % cols
+        row = i // cols
+        layout_parts.append(f"{col}*{tile_width}|{row}*{tile_width}")
+    # Pad with null inputs if n < rows*cols
+    pad_count = rows * cols - n
+    for j in range(pad_count):
+        idx = n + j
+        inputs.extend(["-f", "lavfi", "-i", f"color=black:s={tile_width}x{tile_width}:d=1"])
+        filter_parts.append(f"[{idx}:v]setsar=1[t{idx}];")
+        col = (n + j) % cols
+        row = (n + j) // cols
+        layout_parts.append(f"{col}*{tile_width}|{row}*{tile_width}")
+    total = n + pad_count
+    input_labels = "".join(f"[t{i}]" for i in range(total))
+    filter_str = "".join(filter_parts) + f"{input_labels}xstack=inputs={total}:layout={'|'.join(layout_parts)}[out]"
+    cmd = [
+        ffmpeg, "-y",
+        *inputs,
+        "-filter_complex", filter_str,
+        "-map", "[out]",
+        "-q:v", "2",
+        str(output_path),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    if proc.returncode != 0:
+        raise ExtractionError(f"Contact sheet failed: {proc.stderr[:300]}")
+    return output_path
+
+
+# ─────────────────────────────────────────────────────────────────────
+# 15. Video info / stats
+# ─────────────────────────────────────────────────────────────────────
+def get_video_info(video_path: Path) -> dict:
+    """Get detailed video information using ffprobe.
+
+    Returns:
+        Dict with keys: duration, width, height, fps, codec, audio_codec,
+        bitrate, file_size_mb, format_name.
+    """
+    ffprobe = shutil.which("ffprobe")
+    if not ffprobe:
+        raise ExtractionError("ffprobe not found on PATH")
+    cmd = [
+        ffprobe, "-v", "quiet", "-print_format", "json",
+        "-show_streams", "-show_format", str(video_path),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    if proc.returncode != 0:
+        raise ExtractionError(f"ffprobe failed: {proc.stderr[:200]}")
+    data = json.loads(proc.stdout)
+    info: dict = {}
+    fmt = data.get("format", {})
+    info["duration"] = float(fmt.get("duration", 0))
+    info["bitrate"] = int(fmt.get("bit_rate", 0))
+    info["format_name"] = fmt.get("format_long_name", "")
+    info["file_size_mb"] = round(int(fmt.get("size", 0)) / (1024 * 1024), 2)
+    for s in data.get("streams", []):
+        if s.get("codec_type") == "video" and "width" not in info:
+            info["width"] = int(s.get("width", 0))
+            info["height"] = int(s.get("height", 0))
+            info["codec"] = s.get("codec_name", "")
+            r = s.get("r_frame_rate", "0/1")
+            parts = r.split("/")
+            if len(parts) == 2 and int(parts[1]) > 0:
+                info["fps"] = round(int(parts[0]) / int(parts[1]), 2)
+            else:
+                info["fps"] = 0.0
+        if s.get("codec_type") == "audio" and "audio_codec" not in info:
+            info["audio_codec"] = s.get("codec_name", "")
+            info["audio_sample_rate"] = int(s.get("sample_rate", 0))
+            info["audio_channels"] = int(s.get("channels", 0))
+    return info
+
+
+# ─────────────────────────────────────────────────────────────────────
+# 16. Frame crop
+# ─────────────────────────────────────────────────────────────────────
+def crop_frame(
+    image_path: Path,
+    output_path: Path,
+    x: int,
+    y: int,
+    width: int,
+    height: int,
+) -> Path:
+    """Crop a rectangular region from a frame image.
+
+    Args:
+        image_path: Source image.
+        output_path: Output image path.
+        x: Left offset in pixels.
+        y: Top offset in pixels.
+        width: Crop width.
+        height: Crop height.
+
+    Returns:
+        Path to the cropped image.
+    """
+    if width <= 0 or height <= 0:
+        raise ExtractionError("Crop width and height must be positive")
+    ffmpeg = _require_ffmpeg()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        ffmpeg, "-y",
+        "-i", str(image_path),
+        "-vf", f"crop={width}:{height}:{x}:{y}",
+        "-q:v", "2",
+        str(output_path),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    if proc.returncode != 0:
+        raise ExtractionError(f"Crop failed: {proc.stderr[:300]}")
+    return output_path
+
+
+# ─────────────────────────────────────────────────────────────────────
+# 17. Reverse video
+# ─────────────────────────────────────────────────────────────────────
+def reverse_video(
+    video_path: Path,
+    output_path: Path,
+) -> Path:
+    """Reverse video playback (video + audio).
+
+    Args:
+        video_path: Source video.
+        output_path: Output video path.
+
+    Returns:
+        Path to the reversed video.
+    """
+    ffmpeg = _require_ffmpeg()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        ffmpeg, "-y",
+        "-i", str(video_path),
+        "-vf", "reverse",
+        "-af", "areverse",
+        str(output_path),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+    if proc.returncode != 0:
+        raise ExtractionError(f"Reverse failed: {proc.stderr[:300]}")
+    return output_path
+
+
+# ─────────────────────────────────────────────────────────────────────
+# 18. Extract all frames (full FPS)
+# ─────────────────────────────────────────────────────────────────────
+def extract_all_frames(
+    video_path: Path,
+    output_dir: Path,
+    max_frames: int = 0,
+) -> list[Path]:
+    """Extract every frame from video at original FPS.
+
+    Args:
+        video_path: Source video.
+        output_dir: Directory to save frames.
+        max_frames: Limit number of frames (0 = unlimited).
+
+    Returns:
+        List of extracted frame paths.
+    """
+    ffmpeg = _require_ffmpeg()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    vframes_args = ["-vframes", str(max_frames)] if max_frames > 0 else []
+    cmd = [
+        ffmpeg, "-y",
+        "-i", str(video_path),
+        *vframes_args,
+        "-q:v", "2",
+        str(output_dir / "frame_%06d.jpg"),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+    if proc.returncode != 0:
+        raise ExtractionError(f"Frame extraction failed: {proc.stderr[:300]}")
+    frames = sorted(output_dir.glob("frame_*.jpg"))
+    return frames
+
+
+# ─────────────────────────────────────────────────────────────────────
+# 19. Frame deduplication
+# ─────────────────────────────────────────────────────────────────────
+def find_duplicate_frames(
+    frame_paths: Sequence[Path],
+    threshold: float = 0.95,
+) -> list[tuple[int, int, float]]:
+    """Find near-duplicate frame pairs by comparing file hashes or pixel similarity.
+
+    Args:
+        frame_paths: List of frame image paths.
+        threshold: Similarity threshold (0.0–1.0). Higher = stricter.
+
+    Returns:
+        List of (index_a, index_b, similarity) tuples for duplicates.
+    """
+    import hashlib
+    duplicates: list[tuple[int, int, float]] = []
+    hashes: list[tuple[int, str]] = []
+    for i, fp in enumerate(frame_paths):
+        h = hashlib.sha256(fp.read_bytes()).hexdigest()
+        hashes.append((i, h))
+    # Exact duplicates
+    seen: dict[str, int] = {}
+    for idx, h in hashes:
+        if h in seen:
+            duplicates.append((seen[h], idx, 1.0))
+        else:
+            seen[h] = idx
+    # If OpenCV available, check near-duplicates via histogram comparison
+    try:
+        import cv2
+        import numpy as np
+        histograms: list[tuple[int, object]] = []
+        for i, fp in enumerate(frame_paths):
+            img = cv2.imread(str(fp))
+            if img is not None:
+                hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+                hist = cv2.calcHist([hsv], [0, 1], None, [50, 60], [0, 180, 0, 256])
+                cv2.normalize(hist, hist, 0, 1, cv2.NORM_MINMAX)
+                histograms.append((i, hist))
+        already = {(a, b) for a, b, _ in duplicates}
+        for i in range(len(histograms)):
+            for j in range(i + 1, len(histograms)):
+                idx_a, hist_a = histograms[i]
+                idx_b, hist_b = histograms[j]
+                if (idx_a, idx_b) in already:
+                    continue
+                sim = cv2.compareHist(hist_a, hist_b, cv2.HISTCMP_CORREL)
+                if sim >= threshold:
+                    duplicates.append((idx_a, idx_b, round(sim, 4)))
+    except ImportError:
+        pass  # cv2 not available — only exact duplicates reported
+    return duplicates
+
+
+# ─────────────────────────────────────────────────────────────────────
+# 20. Merge (concatenate) videos
+# ─────────────────────────────────────────────────────────────────────
+def merge_videos(
+    video_paths: Sequence[Path],
+    output_path: Path,
+) -> Path:
+    """Concatenate multiple videos into one using ffmpeg concat demuxer.
+
+    All videos should have the same codec/resolution for seamless merging.
+
+    Args:
+        video_paths: Ordered list of video file paths.
+        output_path: Output video path.
+
+    Returns:
+        Path to the merged video.
+    """
+    if len(video_paths) < 2:
+        raise ExtractionError("Need at least 2 videos to merge")
+    ffmpeg = _require_ffmpeg()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    concat_file = output_path.parent / "_concat_list.txt"
+    lines = [f"file '{p}'" for p in video_paths]
+    concat_file.write_text("\n".join(lines), encoding="utf-8")
+    cmd = [
+        ffmpeg, "-y",
+        "-f", "concat", "-safe", "0",
+        "-i", str(concat_file),
+        "-c", "copy",
+        str(output_path),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+    concat_file.unlink(missing_ok=True)
+    if proc.returncode != 0:
+        raise ExtractionError(f"Merge failed: {proc.stderr[:300]}")
+    return output_path
