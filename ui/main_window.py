@@ -20,6 +20,7 @@ from ui.gallery_widget import GalleryWidget
 from ui.input_panel import InputPanel
 from ui.log_panel import LogPanel
 from ui.prompt_panel import PromptPanel
+from ui.tools_panel import ToolsPanel
 from utils.settings import AppSettings
 from workers.pipeline_worker import PipelineWorker
 
@@ -82,6 +83,12 @@ class MainWindow(QMainWindow):
 
         # Log
         self._log_panel = LogPanel()
+
+        # ── Tools tab (must be after _log_panel and _gallery) ────────
+        self._tools_panel = ToolsPanel()
+        self._tools_panel.set_all_frames_getter(lambda: self._gallery.get_all_frames())
+        self._tools_panel.set_logger(self._log_panel.log_info)
+        self._tabs.addTab(self._tools_panel, self.tr("Tools"))
         right_splitter.addWidget(self._log_panel)
         right_splitter.setStretchFactor(0, 1)
         right_splitter.setStretchFactor(1, 0)
@@ -119,6 +126,9 @@ class MainWindow(QMainWindow):
         menubar = self.menuBar()
 
         file_menu = menubar.addMenu(self.tr("File"))
+        file_menu.addAction(self.tr("Save Project"), self._tools_panel._on_save_project)
+        file_menu.addAction(self.tr("Load Project"), self._tools_panel._on_load_project)
+        file_menu.addSeparator()
         file_menu.addAction(self.tr("Open Output Folder"), self._open_output)
         file_menu.addSeparator()
         file_menu.addAction(self.tr("Exit"), self.close)
@@ -153,6 +163,9 @@ class MainWindow(QMainWindow):
         self._worker.error_occurred.connect(self._on_error)
         self._worker.metadata_ready.connect(self._on_metadata)
 
+        # Let tools panel know the video path
+        self._worker.metadata_ready.connect(self._on_set_tools_video)
+
         self._input_panel.set_running(True)
         self.statusBar().showMessage(self.tr("Running…"))
         self._worker.start()
@@ -178,6 +191,11 @@ class MainWindow(QMainWindow):
         self._log_panel.log_info(
             self.tr(f"Frame {frame.index} | {frame.timestamp_label} | {frame.prompt[:60]}…")
         )
+
+    def _on_set_tools_video(self, meta: dict) -> None:
+        video_path = meta.get("video_path")
+        if video_path:
+            self._tools_panel.set_video_path(Path(video_path))
 
     def _on_metadata(self, meta: dict) -> None:
         """Log video metadata when available."""

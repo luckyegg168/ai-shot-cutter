@@ -490,7 +490,7 @@ class InputPanel(QWidget):
         elif mime.hasText():
             text = mime.text().strip()
         if text.startswith("http"):
-            self._url_edit.setText(text)
+            self._url_edit.setPlainText(text)
             event.acceptProposedAction()
         else:
             event.ignore()

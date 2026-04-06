@@ -119,6 +119,7 @@ class Pipeline:
 
             # --- Step 2.5: extract video metadata ---
             metadata = _get_video_metadata(video_path)
+            metadata["video_path"] = str(video_path)
             if on_metadata and metadata:
                 on_metadata(metadata)
 
