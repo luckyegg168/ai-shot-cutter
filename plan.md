@@ -261,3 +261,30 @@ output/
 - [x] **F-03** Drag & drop URL — `dragEnterEvent` + `dropEvent` on `InputPanel`
 - [x] **F-04** Live frame counter in status bar — `影格 X/Y · <message>` in `_on_progress`
 - [x] **F-05** Collapsible input panel — `_collapse_btn` toggle above form group
+
+## Phase 4 — v1.2 Code Quality & 10 New Features (Completed)
+
+### Bug Fixes
+- [x] **B-04** Ruff lint errors (27 issues) — semicolon compound statements, unused imports, f-string in tr() calls
+- [x] **B-05** Cross-thread UI crash — regenerate prompt called QWidget methods from non-main thread; fixed with `Signal`-based marshalling (`_regen_done`, `_regen_error`)
+- [x] **B-06** f-string inside `self.tr()` — 11 occurrences converted to `self.tr("…").replace("%1", val)` pattern for proper i18n extraction
+- [x] **B-07** Hardcoded Chinese strings in `gallery_widget.py` — replaced with `self.tr()` calls
+
+### New Features (10)
+- [x] **F-06** Export HTML Report — `write_html_report()` in `file_utils.py`; dark-theme CSS grid gallery; wired via File → Export HTML Report menu
+- [x] **F-07** Export CSV — `write_csv()` in `file_utils.py`; index/timestamp/prompt/image_path columns; wired via File → Export CSV menu
+- [x] **F-08** Frame Zoom Viewer — `ui/zoom_viewer.py` `ZoomViewer(QDialog)` 900×650 modal; opens on gallery card double-click
+- [x] **F-09** Auto-open Output Folder — settings checkbox + `get_auto_open_output()`/`set_auto_open_output()` in `AppSettings`; auto-calls `_open_output()` on job finish
+- [x] **F-10** Home/End Gallery Navigation — `QShortcut(Home)` → `select_first()`, `QShortcut(End)` → `select_last()` on gallery
+- [x] **F-11** Live Status Bar Frame Counter — `_on_progress` displays `Frame X/Y · <message>` via i18n
+- [x] **F-12** Prompt History — `utils/prompt_history.py` JSON persistence (~/.ai-shot-cutter/prompt_history.json, 500-entry cap); View → Prompt History menu
+- [x] **F-13** Duration Estimation — `_on_metadata` parses video duration and shows "Estimated frames: ~N (every Xs)" in status bar
+- [x] **F-14** Live Theme Toggle — `SettingsPanel.theme_changed` signal → `_apply_theme_live()` reads QSS and applies via `QApplication.setStyleSheet()` without restart
+- [x] **F-15** Gallery Search/Filter — QLineEdit filter bar with clear button; filters cards by prompt text match in real-time
+
+### i18n
+- [x] Updated `i18n/zh_TW.json` and `i18n/en_US.json` with all new translatable strings (20+ entries)
+
+### Verification
+- [x] `ruff check .` — All checks passed (0 errors)
+- [x] `pytest tests/ -x` — 53/53 tests passed

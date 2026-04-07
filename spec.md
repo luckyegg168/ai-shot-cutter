@@ -418,3 +418,74 @@ Implemented via `QShortcut` + `QKeySequence` in `MainWindow._setup_shortcuts()`.
 - `_collapse_btn` QPushButton (`#collapse_toggle`) above the form group
 - Toggles `_form_widget.setVisible()` on click
 - Arrow indicator: `▼` (expanded) / `▶` (collapsed)
+
+---
+
+## 13. v1.2 Improvements (Code Quality + 10 New Features)
+
+### 13.1 Bug Fixes Applied
+| # | Root Cause | Fix |
+|---|-----------|-----|
+| B-04 | 27 ruff lint errors (semicolons, unused imports, f-strings in tr()) | Split compound statements, added `# noqa: F401`, removed f-strings from `self.tr()` |
+| B-05 | Cross-thread UI: `_regenerate_prompt` called QWidget methods from worker thread | Added `_regen_done = Signal(FrameResult)` and `_regen_error = Signal(str)` for thread-safe marshalling |
+| B-06 | f-string inside `self.tr()` prevents i18n string extraction (11 occurrences) | Converted to `self.tr("…").replace("%1", value)` pattern |
+| B-07 | Hardcoded Chinese text "欄位數", "影格" in `gallery_widget.py` | Replaced with `self.tr("Columns")`, `self.tr("%1 frames")` |
+
+### 13.2 New Features
+
+#### Feature 6 — Export HTML Report
+- `write_html_report(output_path, frames, title)` in `utils/file_utils.py`
+- Dark-theme CSS grid gallery with embedded base64 thumbnails
+- Accessible via File → Export HTML Report menu
+
+#### Feature 7 — Export CSV
+- `write_csv(output_path, frames)` in `utils/file_utils.py`
+- Columns: index, timestamp, prompt, image_path
+- Accessible via File → Export CSV menu
+
+#### Feature 8 — Frame Zoom Viewer
+- `ZoomViewer(QDialog)` in `ui/zoom_viewer.py`
+- 900×650 modal with `QScrollArea` for full-size frame image
+- Triggers on gallery card double-click (`card_double_clicked` signal)
+
+#### Feature 9 — Auto-open Output Folder
+- `get_auto_open_output()` / `set_auto_open_output()` in `AppSettings`
+- Checkbox in Settings → General group
+- `_on_job_finished` auto-calls `_open_output()` when enabled
+
+#### Feature 10 — Home/End Gallery Navigation
+- `QShortcut(Qt.Key_Home)` → `gallery.select_first()`
+- `QShortcut(Qt.Key_End)` → `gallery.select_last()`
+
+#### Feature 11 — Live Status Bar Frame Counter
+- `_on_progress(current, total, msg)` displays `Frame X/Y · <message>` in status bar via i18n
+
+#### Feature 12 — Prompt History
+- `utils/prompt_history.py` — JSON persistence at `~/.ai-shot-cutter/prompt_history.json`
+- Functions: `load_history()`, `append_entry(url, index, timestamp, prompt, type)`, `clear_history()`
+- 500-entry cap with automatic FIFO eviction
+- Accessible via View → Prompt History menu
+
+#### Feature 13 — Duration Estimation
+- `_on_metadata` parses `meta["duration"]` and calculates estimated frames
+- Status bar shows "Estimated frames: ~N (every Xs)"
+
+#### Feature 14 — Live Theme Toggle
+- `SettingsPanel.theme_changed = Signal(str)` emits on theme combo change
+- `MainWindow._apply_theme_live()` reads QSS file and applies via `QApplication.setStyleSheet()`
+- No restart required
+
+#### Feature 15 — Gallery Search/Filter
+- `QLineEdit` filter bar in gallery toolbar with clear button
+- `_apply_filter()` shows/hides cards based on prompt text substring match
+- Real-time filtering as user types
+
+### 13.3 New Files Added
+| File | Purpose |
+|------|---------|
+| `ui/zoom_viewer.py` | Full-size frame image dialog |
+| `utils/prompt_history.py` | JSON-based prompt history persistence |
+| `ui/styles_light.qss` | Light theme stylesheet |
+
+### 13.4 Updated i18n
+Both `i18n/zh_TW.json` and `i18n/en_US.json` updated with 20+ new entries covering all new features.

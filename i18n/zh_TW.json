@@ -227,5 +227,27 @@
   "API & Model": "API 與模型",
   "Frame Processing": "影格處理",
   "Appearance": "外觀",
-  "Saving frame manifest...": "儲存影格清單中..."
+  "Saving frame manifest...": "儲存影格清單中...",
+
+  "Export HTML Report": "匯出 HTML 報告",
+  "Export CSV": "匯出 CSV",
+  "View": "檢視",
+  "Prompt History": "Prompt 歷史紀錄",
+  "No history yet.": "尚無歷史紀錄。",
+  "HTML report exported: %1": "HTML 報告已匯出：%1",
+  "CSV exported: %1": "CSV 已匯出：%1",
+  "Filter prompts…": "篩選 Prompt…",
+  "Auto Open Output": "自動開啟輸出",
+  "Open output folder when job finishes": "工作完成時自動開啟輸出資料夾",
+  "Estimated frames: ~%1 (every %2s)": "預估影格數：~%1（每 %2 秒）",
+  "Starting job: %1": "開始工作：%1",
+  "Queued: %1 (%2 in queue)": "已排入佇列：%1（佇列中還有 %2 個）",
+  "Job completed — %1 frames": "工作完成 — %1 張影格",
+  "Job finished with errors: %1": "工作完成但有錯誤：%1",
+  "Starting next queued job… (%1 remaining)": "開始下一個排程工作…（還剩 %1 個）",
+  "Frame %1 | %2 | %3…": "影格 %1 | %2 | %3…",
+  "Frame %1  ·  %2": "影格 %1  ·  %2",
+  "%1 frames": "%1 張影格",
+  "No Frames": "沒有影格",
+  "No frames available.": "目前沒有可用影格。"
 }

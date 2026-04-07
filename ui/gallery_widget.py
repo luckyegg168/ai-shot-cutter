@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QScrollArea,
     QSizePolicy,
     QVBoxLayout,
@@ -26,7 +27,8 @@ class GalleryWidget(QWidget):
     Emits ``card_selected(FrameResult)`` when the user clicks a card.
     """
 
-    card_selected = Signal(object)   # FrameResult
+    card_selected = Signal(object)        # FrameResult
+    card_double_clicked = Signal(object)  # FrameResult
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -45,7 +47,7 @@ class GalleryWidget(QWidget):
         # ── Toolbar row: column selector ─────────────────────────────
         toolbar = QHBoxLayout()
         toolbar.setContentsMargins(10, 6, 10, 0)
-        toolbar.addWidget(QLabel(self.tr("欄位數")))
+        toolbar.addWidget(QLabel(self.tr("Columns")))
         self._col_combo = QComboBox()
         self._col_combo.setFixedWidth(60)
         for n in _COL_OPTIONS:
@@ -55,7 +57,14 @@ class GalleryWidget(QWidget):
         self._col_combo.currentIndexChanged.connect(self._on_cols_changed)
         toolbar.addWidget(self._col_combo)
         toolbar.addStretch()
-        self._counter_label = QLabel("0 影格")
+        self._filter_edit = QLineEdit()
+        self._filter_edit.setPlaceholderText(self.tr("Filter prompts…"))
+        self._filter_edit.setFixedWidth(180)
+        self._filter_edit.setClearButtonEnabled(True)
+        self._filter_edit.textChanged.connect(self._apply_filter)
+        toolbar.addWidget(self._filter_edit)
+        toolbar.addSpacing(8)
+        self._counter_label = QLabel(self.tr("%1 frames").replace("%1", "0"))
         self._counter_label.setStyleSheet("color: #7f849c; font-size: 11px;")
         toolbar.addWidget(self._counter_label)
         outer.addLayout(toolbar)
@@ -105,6 +114,16 @@ class GalleryWidget(QWidget):
         idx = min(len(self._cards) - 1, self._selected_index + 1)
         self._select_by_index(idx)
 
+    def select_first(self) -> None:
+        """Select the first card."""
+        if self._cards:
+            self._select_by_index(0)
+
+    def select_last(self) -> None:
+        """Select the last card."""
+        if self._cards:
+            self._select_by_index(len(self._cards) - 1)
+
     def _select_by_index(self, idx: int) -> None:
         if 0 <= idx < len(self._cards):
             card = self._cards[idx]
@@ -115,11 +134,12 @@ class GalleryWidget(QWidget):
         """Append a new FrameCard and auto-scroll to it."""
         card = FrameCard(frame_result)
         card.selected.connect(self._on_card_selected)
+        card.double_clicked.connect(lambda fr: self.card_double_clicked.emit(fr))
 
         row, col = divmod(len(self._cards), self._cols)
         self._grid.addWidget(card, row, col)
         self._cards.append(card)
-        self._counter_label.setText(f"{len(self._cards)} 影格")
+        self._counter_label.setText(self.tr("%1 frames").replace("%1", str(len(self._cards))))
 
         # Auto-scroll to newest card
         self._container.adjustSize()
@@ -134,7 +154,7 @@ class GalleryWidget(QWidget):
         self._cards.clear()
         self._selected_card = None
         self._selected_index = -1
-        self._counter_label.setText("0 影格")
+        self._counter_label.setText(self.tr("%1 frames").replace("%1", "0"))
 
     # ------------------------------------------------------------------
     def get_all_frames(self) -> list[FrameResult]:
@@ -156,3 +176,19 @@ class GalleryWidget(QWidget):
                 break
 
         self.card_selected.emit(result)
+
+    # ------------------------------------------------------------------
+    # Feature: prompt filter
+    # ------------------------------------------------------------------
+    def _apply_filter(self, text: str) -> None:
+        """Show/hide cards based on prompt text match."""
+        needle = text.strip().lower()
+        visible = 0
+        for card in self._cards:
+            match = not needle or needle in card.frame_result.prompt.lower()
+            card.setVisible(match)
+            if match:
+                visible += 1
+        self._counter_label.setText(
+            self.tr("%1 frames").replace("%1", str(visible))
+        )

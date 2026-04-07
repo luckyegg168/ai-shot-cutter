@@ -1,7 +1,6 @@
 """FrameCard — thumbnail widget shown in GalleryWidget."""
 from __future__ import annotations
 
-from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QPixmap
@@ -18,7 +17,8 @@ class FrameCard(QFrame):
     THUMB_W = 196
     THUMB_H = 110
 
-    selected = Signal(object)   # FrameResult
+    selected = Signal(object)       # FrameResult
+    double_clicked = Signal(object)  # FrameResult
 
     def __init__(self, frame_result: FrameResult, parent=None) -> None:
         super().__init__(parent)
@@ -88,6 +88,10 @@ class FrameCard(QFrame):
     def mousePressEvent(self, event) -> None:
         self.selected.emit(self._result)
         super().mousePressEvent(event)
+
+    def mouseDoubleClickEvent(self, event) -> None:
+        self.double_clicked.emit(self._result)
+        super().mouseDoubleClickEvent(event)
 
     @property
     def frame_result(self) -> FrameResult:

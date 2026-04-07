@@ -27,7 +27,6 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
-from dataclasses import asdict
 from pathlib import Path
 from typing import Sequence
 
@@ -826,7 +825,7 @@ def find_duplicate_frames(
     # If OpenCV available, check near-duplicates via histogram comparison
     try:
         import cv2
-        import numpy as np
+        import numpy as np  # noqa: F401 — used implicitly by cv2 histogram ops
         histograms: list[tuple[int, object]] = []
         for i, fp in enumerate(frame_paths):
             img = cv2.imread(str(fp))

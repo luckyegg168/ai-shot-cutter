@@ -5,7 +5,7 @@ import threading
 
 from PySide6.QtCore import QThread, Signal
 
-from core.models import FrameResult, JobConfig, JobResult
+from core.models import FrameResult, JobConfig
 from core.pipeline import Pipeline
 
 

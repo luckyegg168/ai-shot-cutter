@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QTextCursor
 from PySide6.QtWidgets import (
     QGroupBox,

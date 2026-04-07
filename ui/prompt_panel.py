@@ -116,7 +116,7 @@ class PromptPanel(QWidget):
         self._current_result = result
 
         self._header_label.setText(
-            self.tr(f"Frame {result.index}  ·  {result.timestamp_label}")
+            self.tr("Frame %1  ·  %2").replace("%1", str(result.index)).replace("%2", result.timestamp_label)
         )
 
         pixmap = QPixmap(str(result.image_path))
@@ -170,7 +170,7 @@ class PromptPanel(QWidget):
         QMessageBox.information(
             self,
             self.tr("Saved"),
-            self.tr(f"Frame saved to:\n{dest}"),
+            self.tr("Frame saved to:\n%1").replace("%1", dest),
         )
 
     # ------------------------------------------------------------------
@@ -185,7 +185,7 @@ class PromptPanel(QWidget):
         QMessageBox.information(
             self,
             self.tr("Copied"),
-            self.tr(f"Copied {len(frames)} prompts to clipboard."),
+            self.tr("Copied %1 prompts to clipboard.").replace("%1", str(len(frames))),
         )
 
     # ------------------------------------------------------------------
@@ -210,7 +210,7 @@ class PromptPanel(QWidget):
         QMessageBox.information(
             self,
             self.tr("Export Complete"),
-            self.tr(f"Exported {len(frames)} prompts to:\n{path}"),
+            self.tr("Exported %1 prompts to:\n%2").replace("%1", str(len(frames))).replace("%2", path),
         )
 
     # ------------------------------------------------------------------
@@ -244,7 +244,7 @@ class PromptPanel(QWidget):
         QMessageBox.information(
             self,
             self.tr("Saved"),
-            self.tr(f"Saved {saved} frames to:\n{folder}"),
+            self.tr("Saved %1 frames to:\n%2").replace("%1", str(saved)).replace("%2", folder),
         )
 
     # ------------------------------------------------------------------

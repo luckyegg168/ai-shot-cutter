@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Callable
 
 from .downloader import download_video
-from .extractor import extract_frames, get_video_duration
+from .extractor import extract_frames
 from .models import DownloadError, ExtractionError, FrameResult, JobConfig, JobResult, VisionError
 from .vision import analyze_frame
 

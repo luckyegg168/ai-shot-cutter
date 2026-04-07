@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QThread
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QMainWindow,
@@ -29,6 +29,9 @@ from workers.pipeline_worker import PipelineWorker
 class MainWindow(QMainWindow):
     """Main application window (1200×700 minimum)."""
 
+    _regen_done = Signal(FrameResult)
+    _regen_error = Signal(str)
+
     def __init__(self, settings: AppSettings) -> None:
         super().__init__()
         self._settings = settings
@@ -41,6 +44,10 @@ class MainWindow(QMainWindow):
         self._setup_ui()
         self._setup_menu()
         self._setup_shortcuts()
+
+        # Thread-safe regenerate signals
+        self._regen_done.connect(self._prompt_panel.update_prompt)
+        self._regen_error.connect(self._log_panel.log_error)
 
     # ------------------------------------------------------------------
     # UI construction
@@ -117,7 +124,11 @@ class MainWindow(QMainWindow):
         self._input_panel.job_requested.connect(self._on_job_requested)
         self._input_panel.stop_button.clicked.connect(self._on_stop_requested)
         self._gallery.card_selected.connect(self._prompt_panel.show_frame)
+        self._gallery.card_double_clicked.connect(self._on_frame_zoom)
         self._prompt_panel.regenerate_requested.connect(self._on_regenerate)
+
+        # Wire settings: live theme toggle
+        self._settings_panel.theme_changed.connect(self._apply_theme_live)
 
         # Wire batch actions: give prompt_panel access to gallery frames
         self._prompt_panel.set_all_frames_getter(self._gallery.get_all_frames)
@@ -129,6 +140,8 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+Shift+C"), self, self._prompt_panel._copy_btn.click)
         QShortcut(QKeySequence("Left"), self, self._gallery.select_prev)
         QShortcut(QKeySequence("Right"), self, self._gallery.select_next)
+        QShortcut(QKeySequence("Home"), self, self._gallery.select_first)
+        QShortcut(QKeySequence("End"), self, self._gallery.select_last)
 
     def _setup_menu(self) -> None:
         menubar = self.menuBar()
@@ -137,9 +150,15 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.tr("Save Project"), self._tools_panel._on_save_project)
         file_menu.addAction(self.tr("Load Project"), self._tools_panel._on_load_project)
         file_menu.addSeparator()
+        file_menu.addAction(self.tr("Export HTML Report"), self._export_html)
+        file_menu.addAction(self.tr("Export CSV"), self._export_csv)
+        file_menu.addSeparator()
         file_menu.addAction(self.tr("Open Output Folder"), self._open_output)
         file_menu.addSeparator()
         file_menu.addAction(self.tr("Exit"), self.close)
+
+        view_menu = menubar.addMenu(self.tr("View"))
+        view_menu.addAction(self.tr("Prompt History"), self._show_prompt_history)
 
         help_menu = menubar.addMenu(self.tr("Help"))
         help_menu.addAction(self.tr("About"), self._show_about)
@@ -152,7 +171,7 @@ class MainWindow(QMainWindow):
             # Queue batch jobs
             self._job_queue.append(config)
             self._log_panel.log_info(
-                self.tr(f"Queued: {config.url} ({len(self._job_queue)} in queue)")
+                self.tr("Queued: %1 (%2 in queue)").replace("%1", config.url).replace("%2", str(len(self._job_queue)))
             )
             return
 
@@ -161,7 +180,7 @@ class MainWindow(QMainWindow):
     def _start_job(self, config: JobConfig) -> None:
         self._gallery.clear()
         self._log_panel.reset_progress()
-        self._log_panel.log_info(self.tr(f"Starting job: {config.url}"))
+        self._log_panel.log_info(self.tr("Starting job: %1").replace("%1", config.url))
         self._last_output_dir = config.output_dir
 
         self._worker = PipelineWorker(config)
@@ -197,8 +216,18 @@ class MainWindow(QMainWindow):
     def _on_frame_ready(self, frame: FrameResult) -> None:
         self._gallery.add_frame_card(frame)
         self._log_panel.log_info(
-            self.tr(f"Frame {frame.index} | {frame.timestamp_label} | {frame.prompt[:60]}…")
+            self.tr("Frame %1 | %2 | %3…").replace("%1", str(frame.index)).replace("%2", frame.timestamp_label).replace("%3", frame.prompt[:60])
         )
+        # Feature: persist prompt history
+        if self._worker:
+            from utils.prompt_history import append_entry
+            append_entry(
+                url=self._worker._config.url,
+                frame_index=frame.index,
+                timestamp_label=frame.timestamp_label,
+                prompt=frame.prompt,
+                prompt_type=self._worker._config.prompt_type,
+            )
 
     def _on_set_tools_video(self, meta: dict) -> None:
         video_path = meta.get("video_path")
@@ -215,9 +244,19 @@ class MainWindow(QMainWindow):
         if meta.get("codec"):
             parts.append(meta["codec"])
         if meta.get("duration"):
-            mins = int(meta["duration"]) // 60
-            secs = int(meta["duration"]) % 60
+            dur = float(meta["duration"])
+            mins = int(dur) // 60
+            secs = int(dur) % 60
             parts.append(f"{mins}m{secs}s")
+            # Feature: Duration-based estimation
+            if self._worker:
+                interval = self._worker._config.interval_sec
+                est_frames = max(1, int(dur / interval))
+                self._log_panel.log_info(
+                    self.tr("Estimated frames: ~%1 (every %2s)")
+                    .replace("%1", str(est_frames))
+                    .replace("%2", str(interval))
+                )
         if meta.get("format_name"):
             parts.append(meta["format_name"])
         if parts:
@@ -225,11 +264,14 @@ class MainWindow(QMainWindow):
 
     def _on_job_finished(self, result: JobResult) -> None:
         if result.success:
-            msg = self.tr(f"Job completed — {len(result.frames)} frames")
+            msg = self.tr("Job completed — %1 frames").replace("%1", str(len(result.frames)))
             self._log_panel.log_info(msg)
             self.statusBar().showMessage(msg)
+            # Feature: auto-open output folder
+            if self._settings.get_auto_open_output():
+                self._open_output()
         else:
-            msg = self.tr(f"Job finished with errors: {result.error_message}")
+            msg = self.tr("Job finished with errors: %1").replace("%1", result.error_message or "")
             self._log_panel.log_warning(msg)
             self.statusBar().showMessage(msg)
 
@@ -237,7 +279,7 @@ class MainWindow(QMainWindow):
         if self._job_queue:
             next_config = self._job_queue.pop(0)
             self._log_panel.log_info(
-                self.tr(f"Starting next queued job… ({len(self._job_queue)} remaining)")
+                self.tr("Starting next queued job… (%1 remaining)").replace("%1", str(len(self._job_queue)))
             )
             self._start_job(next_config)
         else:
@@ -263,6 +305,8 @@ class MainWindow(QMainWindow):
         local_url = self._settings.get_local_model_url()
         model_name = self._settings.get_model_name()
         custom_prompt = self._settings.get_custom_system_prompt()
+        regen_done = self._regen_done
+        regen_error = self._regen_error
 
         class _Task(QRunnable):
             def __init__(self_, f: FrameResult) -> None:
@@ -287,9 +331,9 @@ class MainWindow(QMainWindow):
                         image_path=self_._frame.image_path,
                         prompt=new_prompt,
                     )
-                    self._prompt_panel.update_prompt(new_result)
+                    regen_done.emit(new_result)
                 except VisionError as exc:
-                    self._log_panel.log_error(str(exc))
+                    regen_error.emit(str(exc))
 
         QThreadPool.globalInstance().start(_Task(frame))
 
@@ -313,6 +357,92 @@ class MainWindow(QMainWindow):
             "PySide6 · yt-dlp · ffmpeg · GPT-4o<br><br>"
             "© 2026 luckyegg168",
         )
+
+    # ------------------------------------------------------------------
+    # Feature: Frame zoom viewer (double-click)
+    # ------------------------------------------------------------------
+    def _on_frame_zoom(self, frame: FrameResult) -> None:
+        from ui.zoom_viewer import ZoomViewer
+        dlg = ZoomViewer(frame, self)
+        dlg.exec()
+
+    # ------------------------------------------------------------------
+    # Feature: Export HTML report
+    # ------------------------------------------------------------------
+    def _export_html(self) -> None:
+        from PySide6.QtWidgets import QFileDialog
+        from utils.file_utils import write_html_report
+
+        frames = self._gallery.get_all_frames()
+        if not frames:
+            QMessageBox.information(self, self.tr("No Frames"), self.tr("No frames available."))
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, self.tr("Export HTML Report"), "report.html", "HTML (*.html)"
+        )
+        if path:
+            write_html_report(Path(path), frames)
+            self._log_panel.log_info(self.tr("HTML report exported: %1").replace("%1", path))
+
+    # ------------------------------------------------------------------
+    # Feature: Export CSV
+    # ------------------------------------------------------------------
+    def _export_csv(self) -> None:
+        from PySide6.QtWidgets import QFileDialog
+        from utils.file_utils import write_csv
+
+        frames = self._gallery.get_all_frames()
+        if not frames:
+            QMessageBox.information(self, self.tr("No Frames"), self.tr("No frames available."))
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, self.tr("Export CSV"), "frames.csv", "CSV (*.csv)"
+        )
+        if path:
+            write_csv(Path(path), frames)
+            self._log_panel.log_info(self.tr("CSV exported: %1").replace("%1", path))
+
+    # ------------------------------------------------------------------
+    # Feature: Prompt history viewer
+    # ------------------------------------------------------------------
+    def _show_prompt_history(self) -> None:
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QPlainTextEdit, QVBoxLayout
+        from utils.prompt_history import load_history
+
+        entries = load_history()
+        dlg = QDialog(self)
+        dlg.setWindowTitle(self.tr("Prompt History"))
+        dlg.resize(700, 500)
+        lay = QVBoxLayout(dlg)
+        text = QPlainTextEdit()
+        text.setReadOnly(True)
+        if entries:
+            lines = []
+            for e in reversed(entries):
+                lines.append(
+                    f"[{e.get('created_at', '')}]  Frame {e.get('frame_index', '?')}  "
+                    f"({e.get('timestamp', '')})\n{e.get('prompt', '')}\n"
+                )
+            text.setPlainText("\n".join(lines))
+        else:
+            text.setPlainText(self.tr("No history yet."))
+        lay.addWidget(text)
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        btns.rejected.connect(dlg.reject)
+        lay.addWidget(btns)
+        dlg.exec()
+
+    # ------------------------------------------------------------------
+    # Feature: Live theme toggle
+    # ------------------------------------------------------------------
+    def _apply_theme_live(self, theme: str) -> None:
+        qss_name = "styles_light.qss" if theme == "light" else "styles.qss"
+        qss_path = Path(__file__).parent / qss_name
+        if qss_path.exists():
+            from PySide6.QtWidgets import QApplication
+            app = QApplication.instance()
+            if app:
+                app.setStyleSheet(qss_path.read_text(encoding="utf-8"))
 
     def closeEvent(self, event) -> None:
         if self._worker and self._worker.isRunning():

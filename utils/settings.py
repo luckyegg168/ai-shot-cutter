@@ -104,5 +104,12 @@ class AppSettings:
     def set_blur_threshold(self, value: float) -> None:
         self._qs.setValue("blur_threshold", value)
 
+    # --- Auto-open output ---
+    def get_auto_open_output(self) -> bool:
+        return self._qs.value("auto_open_output", False, type=bool)
+
+    def set_auto_open_output(self, value: bool) -> None:
+        self._qs.setValue("auto_open_output", value)
+
     def sync(self) -> None:
         self._qs.sync()

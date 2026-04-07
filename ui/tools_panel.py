@@ -1,11 +1,9 @@
 """ToolsPanel — 20 practical video editing tools in a dedicated tab."""
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QRunnable, QThreadPool, Slot
-from PySide6.QtGui import QPixmap
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -20,7 +18,6 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
-    QSizePolicy,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -330,16 +327,22 @@ class ToolsPanel(QWidget):
         g16 = QGroupBox(self.tr("16. Frame Crop"))
         g16_lay = QGridLayout(g16)
         g16_lay.addWidget(QLabel("X:"), 0, 0)
-        self._crop_x = QSpinBox(); self._crop_x.setRange(0, 9999)
+        self._crop_x = QSpinBox()
+        self._crop_x.setRange(0, 9999)
         g16_lay.addWidget(self._crop_x, 0, 1)
         g16_lay.addWidget(QLabel("Y:"), 0, 2)
-        self._crop_y = QSpinBox(); self._crop_y.setRange(0, 9999)
+        self._crop_y = QSpinBox()
+        self._crop_y.setRange(0, 9999)
         g16_lay.addWidget(self._crop_y, 0, 3)
         g16_lay.addWidget(QLabel(self.tr("Width:")), 1, 0)
-        self._crop_w = QSpinBox(); self._crop_w.setRange(1, 9999); self._crop_w.setValue(640)
+        self._crop_w = QSpinBox()
+        self._crop_w.setRange(1, 9999)
+        self._crop_w.setValue(640)
         g16_lay.addWidget(self._crop_w, 1, 1)
         g16_lay.addWidget(QLabel(self.tr("Height:")), 1, 2)
-        self._crop_h = QSpinBox(); self._crop_h.setRange(1, 9999); self._crop_h.setValue(480)
+        self._crop_h = QSpinBox()
+        self._crop_h.setRange(1, 9999)
+        self._crop_h.setValue(480)
         g16_lay.addWidget(self._crop_h, 1, 3)
         btn_crop = QPushButton(self.tr("Crop Frame"))
         btn_crop.clicked.connect(self._on_crop_frame)

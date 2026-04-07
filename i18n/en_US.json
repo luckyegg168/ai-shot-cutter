@@ -223,5 +223,27 @@
   "API & Model": "API & Model",
   "Frame Processing": "Frame Processing",
   "Appearance": "Appearance",
-  "Saving frame manifest...": "Saving frame manifest..."
+  "Saving frame manifest...": "Saving frame manifest...",
+
+  "Export HTML Report": "Export HTML Report",
+  "Export CSV": "Export CSV",
+  "View": "View",
+  "Prompt History": "Prompt History",
+  "No history yet.": "No history yet.",
+  "HTML report exported: %1": "HTML report exported: %1",
+  "CSV exported: %1": "CSV exported: %1",
+  "Filter prompts…": "Filter prompts…",
+  "Auto Open Output": "Auto Open Output",
+  "Open output folder when job finishes": "Open output folder when job finishes",
+  "Estimated frames: ~%1 (every %2s)": "Estimated frames: ~%1 (every %2s)",
+  "Starting job: %1": "Starting job: %1",
+  "Queued: %1 (%2 in queue)": "Queued: %1 (%2 in queue)",
+  "Job completed — %1 frames": "Job completed — %1 frames",
+  "Job finished with errors: %1": "Job finished with errors: %1",
+  "Starting next queued job… (%1 remaining)": "Starting next queued job… (%1 remaining)",
+  "Frame %1 | %2 | %3…": "Frame %1 | %2 | %3…",
+  "Frame %1  ·  %2": "Frame %1  ·  %2",
+  "%1 frames": "%1 frames",
+  "No Frames": "No Frames",
+  "No frames available.": "No frames available."
 }

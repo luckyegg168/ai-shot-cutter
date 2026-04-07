@@ -18,7 +18,6 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
-    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -33,7 +32,8 @@ _LBL_W = 160
 class SettingsPanel(QWidget):
     """Dedicated settings tab — API keys, output, model, theme, language, etc."""
 
-    settings_changed = Signal()  # emitted when any setting changes
+    settings_changed = Signal()   # emitted when any setting changes
+    theme_changed = Signal(str)    # emitted with theme name ("dark" / "light")
 
     def __init__(self, settings: AppSettings, parent=None) -> None:
         super().__init__(parent)
@@ -100,15 +100,21 @@ class SettingsPanel(QWidget):
         dir_wrap.setLayout(dir_row)
         grid.addWidget(dir_wrap, 0, 1)
 
+        # Auto-open output after job
+        grid.addWidget(self._lbl(self.tr("Auto Open Output")), 1, 0, lbl)
+        self._auto_open_check = QCheckBox(self.tr("Open output folder when job finishes"))
+        self._auto_open_check.setFixedHeight(_FIELD_H)
+        grid.addWidget(self._auto_open_check, 1, 1)
+
         # Video Resolution
-        grid.addWidget(self._lbl(self.tr("Video Resolution")), 1, 0, lbl)
+        grid.addWidget(self._lbl(self.tr("Video Resolution")), 2, 0, lbl)
         self._resolution_combo = QComboBox()
         self._resolution_combo.setFixedHeight(_FIELD_H)
         self._resolution_combo.addItem("720p", "720")
         self._resolution_combo.addItem("1080p", "1080")
         self._resolution_combo.addItem(self.tr("Best Quality"), "best")
         self._resolution_combo.setToolTip(self.tr("Video resolution limit for yt-dlp"))
-        grid.addWidget(self._resolution_combo, 1, 1)
+        grid.addWidget(self._resolution_combo, 2, 1)
 
         return grp
 
@@ -258,6 +264,7 @@ class SettingsPanel(QWidget):
         self._model_name_edit.setText(s.get_model_name())
         self._system_prompt_edit.setPlainText(s.get_custom_system_prompt())
         self._blur_spin.setValue(s.get_blur_threshold())
+        self._auto_open_check.setChecked(s.get_auto_open_output())
         self._on_local_model_toggled(s.get_use_local_model())
 
     def _connect_signals(self) -> None:
@@ -289,6 +296,9 @@ class SettingsPanel(QWidget):
                 self._system_prompt_edit.toPlainText()
             )
         )
+        self._auto_open_check.toggled.connect(
+            lambda v: self._settings.set_auto_open_output(v)
+        )
 
     # ------------------------------------------------------------------
     # Slots
@@ -306,11 +316,7 @@ class SettingsPanel(QWidget):
     def _on_theme_changed(self) -> None:
         theme: str = self._theme_combo.currentData()
         self._settings.set_theme(theme)
-        QMessageBox.information(
-            self,
-            self.tr("Theme"),
-            self.tr("Restart to apply theme"),
-        )
+        self.theme_changed.emit(theme)
 
     def _on_language_changed(self) -> None:
         code: str = self._lang_combo.currentData()
