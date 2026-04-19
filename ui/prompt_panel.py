@@ -67,6 +67,13 @@ class PromptPanel(QWidget):
         self._prompt_edit.setPlaceholderText(self.tr("Select a frame from the gallery..."))
         inner.addWidget(self._prompt_edit)
 
+        # Char/word counter  (v1.3 F-19)
+        self._counter_label = QLabel("0 chars · 0 words")
+        self._counter_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self._counter_label.setStyleSheet("font-size: 10px; color: #7f849c;")
+        inner.addWidget(self._counter_label)
+        self._prompt_edit.textChanged.connect(self._update_counter)
+
         # Single-frame buttons
         btn_row = QHBoxLayout()
         btn_row.setSpacing(8)
@@ -109,6 +116,15 @@ class PromptPanel(QWidget):
         self._copy_all_btn.clicked.connect(self._copy_all_prompts)
         self._export_btn.clicked.connect(self._export_all_prompts)
         self._save_all_btn.clicked.connect(self._save_all_frames)
+
+    # ------------------------------------------------------------------
+    def _update_counter(self) -> None:
+        text = self._prompt_edit.toPlainText()
+        chars = len(text)
+        words = len(text.split()) if text.strip() else 0
+        self._counter_label.setText(
+            self.tr("%1 chars · %2 words").replace("%1", str(chars)).replace("%2", str(words))
+        )
 
     # ------------------------------------------------------------------
     def show_frame(self, result: FrameResult) -> None:

@@ -21,6 +21,47 @@ _VIDEO_SYSTEM_PROMPT = (
     "duration hint, and cinematic style. Output only the prompt text, no explanations."
 )
 
+_CHARACTER_SYSTEM_PROMPT = (
+    "You are an expert character designer and AI art director. Analyze this frame and generate "
+    "a detailed text-to-image prompt focused on character design. "
+    "Include: character appearance, clothing style, facial features, pose, expression, "
+    "art style (e.g. anime, realistic, painterly), lighting setup, and background context. "
+    "Output only the prompt text, no explanations."
+)
+
+_LANDSCAPE_SYSTEM_PROMPT = (
+    "You are an expert landscape and environment concept artist. Analyze this frame and generate "
+    "a detailed text-to-image prompt focused on the environment and scenery. "
+    "Include: terrain type, vegetation, weather conditions, time of day, atmospheric effects, "
+    "color palette, perspective/composition, and emotional mood. "
+    "Output only the prompt text, no explanations."
+)
+
+_PRODUCT_SYSTEM_PROMPT = (
+    "You are an expert product photographer and AI art director. Analyze this frame and generate "
+    "a detailed text-to-image prompt for product visualization. "
+    "Include: product description, materials and textures, lighting setup (key/fill/rim), "
+    "background style, shadows, reflections, and commercial photography aesthetic. "
+    "Output only the prompt text, no explanations."
+)
+
+_ARCHITECTURE_SYSTEM_PROMPT = (
+    "You are an expert architectural renderer and AI art director. Analyze this frame and generate "
+    "a detailed text-to-image prompt focused on architectural visualization. "
+    "Include: building style/era, materials and finishes, structural details, surrounding "
+    "environment, lighting conditions, perspective type, and rendering quality descriptors. "
+    "Output only the prompt text, no explanations."
+)
+
+_SYSTEM_PROMPTS: dict[str, str] = {
+    "image":        _IMAGE_SYSTEM_PROMPT,
+    "video":        _VIDEO_SYSTEM_PROMPT,
+    "character":    _CHARACTER_SYSTEM_PROMPT,
+    "landscape":    _LANDSCAPE_SYSTEM_PROMPT,
+    "product":      _PRODUCT_SYSTEM_PROMPT,
+    "architecture": _ARCHITECTURE_SYSTEM_PROMPT,
+}
+
 
 def _encode_image(image_path: Path) -> str:
     """Return base64-encoded JPEG data URL."""
@@ -64,10 +105,8 @@ def analyze_frame(
     # Determine system prompt
     if custom_system_prompt.strip():
         system_prompt = custom_system_prompt.strip()
-    elif prompt_type == "video":
-        system_prompt = _VIDEO_SYSTEM_PROMPT
     else:
-        system_prompt = _IMAGE_SYSTEM_PROMPT
+        system_prompt = _SYSTEM_PROMPTS.get(prompt_type, _IMAGE_SYSTEM_PROMPT)
 
     image_data_url = _encode_image(image_path)
 

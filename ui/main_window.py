@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import time
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QEvent, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
+    QApplication,
     QMainWindow,
     QMessageBox,
     QSplitter,
@@ -21,6 +23,7 @@ from ui.input_panel import InputPanel
 from ui.log_panel import LogPanel
 from ui.prompt_panel import PromptPanel
 from ui.settings_panel import SettingsPanel
+from ui.toast import Toast
 from ui.tools_panel import ToolsPanel
 from utils.settings import AppSettings
 from workers.pipeline_worker import PipelineWorker
@@ -38,6 +41,7 @@ class MainWindow(QMainWindow):
         self._worker: PipelineWorker | None = None
         self._last_output_dir: Path | None = None
         self._job_queue: list[JobConfig] = []
+        self._job_start_time: float = 0.0
 
         self.setWindowTitle(self.tr("YouTube AI Frame Prompt Generator"))
         self.setMinimumSize(1200, 700)
@@ -45,9 +49,17 @@ class MainWindow(QMainWindow):
         self._setup_menu()
         self._setup_shortcuts()
 
+        # Toast overlay
+        self._toast = Toast(self)
+
         # Thread-safe regenerate signals
         self._regen_done.connect(self._prompt_panel.update_prompt)
         self._regen_error.connect(self._log_panel.log_error)
+
+        # Restore always-on-top
+        if self._settings.get_always_on_top():
+            self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+            self._always_top_action.setChecked(True)
 
     # ------------------------------------------------------------------
     # UI construction
@@ -72,7 +84,7 @@ class MainWindow(QMainWindow):
         self._tabs.setDocumentMode(True)
 
         self._input_panel = InputPanel(self._settings)
-        self._tabs.addTab(self._input_panel, self.tr("Job Settings"))
+        self._tabs.addTab(self._input_panel, "⚙  " + self.tr("Job Settings"))
 
         main_splitter.addWidget(self._tabs)
 
@@ -96,11 +108,11 @@ class MainWindow(QMainWindow):
         self._tools_panel = ToolsPanel()
         self._tools_panel.set_all_frames_getter(lambda: self._gallery.get_all_frames())
         self._tools_panel.set_logger(self._log_panel.log_info)
-        self._tabs.addTab(self._tools_panel, self.tr("Tools"))
+        self._tabs.addTab(self._tools_panel, "🔧  " + self.tr("Tools"))
 
         # ── Settings tab ─────────────────────────────────────────────
         self._settings_panel = SettingsPanel(self._settings)
-        self._tabs.addTab(self._settings_panel, self.tr("Settings"))
+        self._tabs.addTab(self._settings_panel, "⚙  " + self.tr("Settings"))
 
         # Wire settings panel to input panel for validation & job creation
         self._input_panel.set_settings_panel(self._settings_panel)
@@ -142,6 +154,7 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Right"), self, self._gallery.select_next)
         QShortcut(QKeySequence("Home"), self, self._gallery.select_first)
         QShortcut(QKeySequence("End"), self, self._gallery.select_last)
+        QShortcut(QKeySequence("Ctrl+/"), self, self._show_shortcuts_help)
 
     def _setup_menu(self) -> None:
         menubar = self.menuBar()
@@ -159,8 +172,14 @@ class MainWindow(QMainWindow):
 
         view_menu = menubar.addMenu(self.tr("View"))
         view_menu.addAction(self.tr("Prompt History"), self._show_prompt_history)
+        view_menu.addSeparator()
+        self._always_top_action = view_menu.addAction(self.tr("Always on Top"))
+        self._always_top_action.setCheckable(True)
+        self._always_top_action.toggled.connect(self._toggle_always_on_top)
 
         help_menu = menubar.addMenu(self.tr("Help"))
+        help_menu.addAction(self.tr("Keyboard Shortcuts") + "\tCtrl+/", self._show_shortcuts_help)
+        help_menu.addSeparator()
         help_menu.addAction(self.tr("About"), self._show_about)
 
     # ------------------------------------------------------------------
@@ -182,6 +201,7 @@ class MainWindow(QMainWindow):
         self._log_panel.reset_progress()
         self._log_panel.log_info(self.tr("Starting job: %1").replace("%1", config.url))
         self._last_output_dir = config.output_dir
+        self._job_start_time = time.time()
 
         self._worker = PipelineWorker(config)
         self._worker.progress_updated.connect(self._on_progress)
@@ -264,9 +284,12 @@ class MainWindow(QMainWindow):
 
     def _on_job_finished(self, result: JobResult) -> None:
         if result.success:
+            elapsed = time.time() - self._job_start_time
             msg = self.tr("Job completed — %1 frames").replace("%1", str(len(result.frames)))
             self._log_panel.log_info(msg)
             self.statusBar().showMessage(msg)
+            self._toast.show_message(msg, "info")
+            self._show_session_summary(result, elapsed)
             # Feature: auto-open output folder
             if self._settings.get_auto_open_output():
                 self._open_output()
@@ -274,6 +297,7 @@ class MainWindow(QMainWindow):
             msg = self.tr("Job finished with errors: %1").replace("%1", result.error_message or "")
             self._log_panel.log_warning(msg)
             self.statusBar().showMessage(msg)
+            self._toast.show_message(msg, "warning")
 
         # Process next job in batch queue
         if self._job_queue:
@@ -443,6 +467,96 @@ class MainWindow(QMainWindow):
             app = QApplication.instance()
             if app:
                 app.setStyleSheet(qss_path.read_text(encoding="utf-8"))
+
+    # ------------------------------------------------------------------
+    # Feature F-18: Clipboard URL Auto-detect
+    # ------------------------------------------------------------------
+    def changeEvent(self, event: QEvent) -> None:  # noqa: N802
+        if event.type() == QEvent.Type.WindowActivate:
+            clipboard = QApplication.clipboard()
+            text = clipboard.text().strip()
+            if (
+                text.startswith("http")
+                and "youtube.com" in text
+                and text != self._input_panel._url_edit.toPlainText().strip()
+            ):
+                self._input_panel.show_clipboard_banner(text)
+        super().changeEvent(event)
+
+    # ------------------------------------------------------------------
+    # Feature F-25: Always on Top
+    # ------------------------------------------------------------------
+    def _toggle_always_on_top(self, checked: bool) -> None:
+        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, checked)
+        self.show()
+        self._settings.set_always_on_top(checked)
+
+    # ------------------------------------------------------------------
+    # Feature F-20: Keyboard Shortcuts Help
+    # ------------------------------------------------------------------
+    def _show_shortcuts_help(self) -> None:
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
+
+        shortcuts = [
+            ("Ctrl+Enter", self.tr("Start job")),
+            ("Escape", self.tr("Stop job")),
+            ("←  /  →", self.tr("Navigate frames")),
+            ("Home  /  End", self.tr("First / Last frame")),
+            ("Ctrl+Shift+C", self.tr("Copy current prompt")),
+            ("Ctrl+/", self.tr("Show this help")),
+        ]
+        dlg = QDialog(self)
+        dlg.setWindowTitle(self.tr("Keyboard Shortcuts"))
+        dlg.setMinimumWidth(380)
+        layout = QVBoxLayout(dlg)
+        layout.setSpacing(6)
+        for key, desc in shortcuts:
+            row_lbl = QLabel(f"<b>{key}</b>  —  {desc}")
+            row_lbl.setTextFormat(Qt.TextFormat.RichText)
+            layout.addWidget(row_lbl)
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        btns.rejected.connect(dlg.reject)
+        layout.addWidget(btns)
+        dlg.exec()
+
+    # ------------------------------------------------------------------
+    # Feature F-24: Session Summary Dialog
+    # ------------------------------------------------------------------
+    def _show_session_summary(self, result: JobResult, elapsed: float) -> None:
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
+
+        frames = result.frames
+        if not frames:
+            return
+
+        prompt_lengths = [len(f.prompt) for f in frames]
+        avg_len = sum(prompt_lengths) // len(prompt_lengths) if prompt_lengths else 0
+        mins = int(elapsed) // 60
+        secs = int(elapsed) % 60
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(self.tr("Session Summary"))
+        dlg.setMinimumWidth(360)
+        layout = QVBoxLayout(dlg)
+        layout.setSpacing(10)
+
+        def _stat(label: str, value: str) -> QLabel:
+            lbl = QLabel(f"<b>{label}</b>  {value}")
+            lbl.setTextFormat(Qt.TextFormat.RichText)
+            return lbl
+
+        layout.addWidget(_stat(self.tr("Frames analyzed:"), str(len(frames))))
+        layout.addWidget(_stat(self.tr("Elapsed time:"), f"{mins}m {secs}s"))
+        layout.addWidget(_stat(self.tr("Avg prompt length:"), f"{avg_len} chars"))
+        layout.addWidget(_stat(self.tr("Longest prompt:"), f"{max(prompt_lengths)} chars"))
+
+        btns = QDialogButtonBox()
+        open_btn = btns.addButton(self.tr("Open Output Folder"), QDialogButtonBox.ButtonRole.ActionRole)
+        open_btn.clicked.connect(self._open_output)
+        btns.addButton(QDialogButtonBox.StandardButton.Close)
+        btns.rejected.connect(dlg.reject)
+        layout.addWidget(btns)
+        dlg.exec()
 
     def closeEvent(self, event) -> None:
         if self._worker and self._worker.isRunning():

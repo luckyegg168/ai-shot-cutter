@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QGridLayout,
     QHBoxLayout,
@@ -10,6 +11,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QScrollArea,
     QSizePolicy,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -19,6 +21,13 @@ from ui.frame_card import FrameCard
 
 _DEFAULT_COLS = 3
 _COL_OPTIONS = [2, 3, 4, 6]
+
+_SORT_OPTIONS = [
+    ("Frame Order", "index"),
+    ("Timestamp ▲", "ts_asc"),
+    ("Timestamp ▼", "ts_desc"),
+    ("Prompt Length", "prompt_len"),
+]
 
 
 class GalleryWidget(QWidget):
@@ -36,6 +45,7 @@ class GalleryWidget(QWidget):
         self._selected_card: FrameCard | None = None
         self._selected_index: int = -1
         self._cols = _DEFAULT_COLS
+        self._starred_only = False
         self._setup_ui()
 
     # ------------------------------------------------------------------
@@ -44,26 +54,60 @@ class GalleryWidget(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(6)
 
-        # ── Toolbar row: column selector ─────────────────────────────
+        # ── Toolbar row ───────────────────────────────────────────────
         toolbar = QHBoxLayout()
         toolbar.setContentsMargins(10, 6, 10, 0)
-        toolbar.addWidget(QLabel(self.tr("Columns")))
+
+        # Column selector
+        toolbar.addWidget(QLabel(self.tr("Cols")))
         self._col_combo = QComboBox()
-        self._col_combo.setFixedWidth(60)
+        self._col_combo.setFixedWidth(52)
         for n in _COL_OPTIONS:
             self._col_combo.addItem(str(n), n)
         idx = _COL_OPTIONS.index(_DEFAULT_COLS) if _DEFAULT_COLS in _COL_OPTIONS else 0
         self._col_combo.setCurrentIndex(idx)
         self._col_combo.currentIndexChanged.connect(self._on_cols_changed)
         toolbar.addWidget(self._col_combo)
+        toolbar.addSpacing(10)
+
+        # Sort selector
+        toolbar.addWidget(QLabel(self.tr("Sort")))
+        self._sort_combo = QComboBox()
+        self._sort_combo.setFixedWidth(130)
+        for label, key in _SORT_OPTIONS:
+            self._sort_combo.addItem(self.tr(label), key)
+        self._sort_combo.currentIndexChanged.connect(self._apply_sort)
+        toolbar.addWidget(self._sort_combo)
+        toolbar.addSpacing(10)
+
+        # Starred filter
+        self._starred_check = QCheckBox("⭐")
+        self._starred_check.setToolTip(self.tr("Show favorites only"))
+        self._starred_check.toggled.connect(self._on_starred_filter)
+        toolbar.addWidget(self._starred_check)
+
         toolbar.addStretch()
+
+        # Frame jump (enter frame number)
+        self._jump_spin = QSpinBox()
+        self._jump_spin.setFixedWidth(62)
+        self._jump_spin.setMinimum(1)
+        self._jump_spin.setMaximum(9999)
+        self._jump_spin.setPrefix("#")
+        self._jump_spin.setToolTip(self.tr("Jump to frame number"))
+        self._jump_spin.editingFinished.connect(self._jump_to_frame)
+        toolbar.addWidget(self._jump_spin)
+        toolbar.addSpacing(8)
+
+        # Filter edit
         self._filter_edit = QLineEdit()
         self._filter_edit.setPlaceholderText(self.tr("Filter prompts…"))
-        self._filter_edit.setFixedWidth(180)
+        self._filter_edit.setFixedWidth(170)
         self._filter_edit.setClearButtonEnabled(True)
         self._filter_edit.textChanged.connect(self._apply_filter)
         toolbar.addWidget(self._filter_edit)
         toolbar.addSpacing(8)
+
         self._counter_label = QLabel(self.tr("%1 frames").replace("%1", "0"))
         self._counter_label.setStyleSheet("color: #7f849c; font-size: 11px;")
         toolbar.addWidget(self._counter_label)
@@ -82,6 +126,20 @@ class GalleryWidget(QWidget):
         self._scroll.setWidget(self._container)
         outer.addWidget(self._scroll)
 
+        # ── Empty state label (shown when no cards) ─────────────────
+        self._empty_label = QLabel(
+            "🎞  " + self.tr("No frames yet") + "\n\n"
+            + self.tr("Paste a YouTube URL in the Job Settings tab and press Start.")
+        )
+        self._empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._empty_label.setStyleSheet(
+            "color: #45475a; font-size: 14px; background: transparent;"
+        )
+        self._empty_label.setWordWrap(True)
+        outer.addWidget(self._empty_label, alignment=Qt.AlignmentFlag.AlignCenter)
+        self._empty_label.setVisible(True)
+        self._scroll.setVisible(False)
+
     # ------------------------------------------------------------------
     # Feature: adjustable gallery columns
     # ------------------------------------------------------------------
@@ -90,37 +148,72 @@ class GalleryWidget(QWidget):
         self._relayout()
 
     def _relayout(self) -> None:
-        """Re-place all cards in the grid with current column count."""
+        """Re-place all *visible* cards in the grid with current column count."""
         for card in self._cards:
             self._grid.removeWidget(card)
-        for i, card in enumerate(self._cards):
+        visible_cards = [c for c in self._cards if c.isVisible()]
+        for i, card in enumerate(visible_cards):
             row, col = divmod(i, self._cols)
             self._grid.addWidget(card, row, col)
+
+    # ------------------------------------------------------------------
+    # Feature: Gallery Sort
+    # ------------------------------------------------------------------
+    def _apply_sort(self) -> None:
+        key = self._sort_combo.currentData()
+        if key == "index":
+            self._cards.sort(key=lambda c: c.frame_result.index)
+        elif key == "ts_asc":
+            self._cards.sort(key=lambda c: c.frame_result.timestamp_sec)
+        elif key == "ts_desc":
+            self._cards.sort(key=lambda c: -c.frame_result.timestamp_sec)
+        elif key == "prompt_len":
+            self._cards.sort(key=lambda c: -len(c.frame_result.prompt))
+        self._relayout()
+
+    # ------------------------------------------------------------------
+    # Feature: Starred-only filter
+    # ------------------------------------------------------------------
+    def _on_starred_filter(self, checked: bool) -> None:
+        self._starred_only = checked
+        self._apply_visibility()
+
+    def _apply_visibility(self) -> None:
+        """Apply both text filter and starred filter."""
+        needle = self._filter_edit.text().strip().lower()
+        visible = 0
+        for card in self._cards:
+            text_ok = not needle or needle in card.frame_result.prompt.lower()
+            star_ok = not self._starred_only or card.is_favorite
+            show = text_ok and star_ok
+            card.setVisible(show)
+            if show:
+                visible += 1
+        self._counter_label.setText(
+            self.tr("%1 frames").replace("%1", str(visible))
+        )
+        self._relayout()
 
     # ------------------------------------------------------------------
     # Feature: frame navigation (← →)
     # ------------------------------------------------------------------
     def select_prev(self) -> None:
-        """Select the previous card."""
         if not self._cards:
             return
         idx = max(0, self._selected_index - 1)
         self._select_by_index(idx)
 
     def select_next(self) -> None:
-        """Select the next card."""
         if not self._cards:
             return
         idx = min(len(self._cards) - 1, self._selected_index + 1)
         self._select_by_index(idx)
 
     def select_first(self) -> None:
-        """Select the first card."""
         if self._cards:
             self._select_by_index(0)
 
     def select_last(self) -> None:
-        """Select the last card."""
         if self._cards:
             self._select_by_index(len(self._cards) - 1)
 
@@ -128,6 +221,18 @@ class GalleryWidget(QWidget):
         if 0 <= idx < len(self._cards):
             card = self._cards[idx]
             card.selected.emit(card.frame_result)
+
+    # ------------------------------------------------------------------
+    # Feature: jump to frame number
+    # ------------------------------------------------------------------
+    def _jump_to_frame(self) -> None:
+        target = self._jump_spin.value()
+        for i, card in enumerate(self._cards):
+            if card.frame_result.index == target:
+                self._select_by_index(i)
+                # Scroll to the card
+                self._scroll.ensureWidgetVisible(card)
+                return
 
     # ------------------------------------------------------------------
     def add_frame_card(self, frame_result: FrameResult) -> None:
@@ -140,6 +245,14 @@ class GalleryWidget(QWidget):
         self._grid.addWidget(card, row, col)
         self._cards.append(card)
         self._counter_label.setText(self.tr("%1 frames").replace("%1", str(len(self._cards))))
+
+        # Show scroll area and hide empty state
+        if len(self._cards) == 1:
+            self._empty_label.setVisible(False)
+            self._scroll.setVisible(True)
+            self._jump_spin.setMaximum(1)
+
+        self._jump_spin.setMaximum(len(self._cards))
 
         # Auto-scroll to newest card
         self._container.adjustSize()
@@ -155,11 +268,20 @@ class GalleryWidget(QWidget):
         self._selected_card = None
         self._selected_index = -1
         self._counter_label.setText(self.tr("%1 frames").replace("%1", "0"))
+        self._jump_spin.setMinimum(1)
+        self._jump_spin.setMaximum(1)
+        self._jump_spin.setValue(1)
+        self._empty_label.setVisible(True)
+        self._scroll.setVisible(False)
 
     # ------------------------------------------------------------------
     def get_all_frames(self) -> list[FrameResult]:
         """Return all FrameResult objects."""
         return [c.frame_result for c in self._cards]
+
+    def get_favorite_frames(self) -> list[FrameResult]:
+        """Return only favorited FrameResult objects."""
+        return [c.frame_result for c in self._cards if c.is_favorite]
 
     # ------------------------------------------------------------------
     def _on_card_selected(self, result: FrameResult) -> None:
@@ -180,15 +302,6 @@ class GalleryWidget(QWidget):
     # ------------------------------------------------------------------
     # Feature: prompt filter
     # ------------------------------------------------------------------
-    def _apply_filter(self, text: str) -> None:
-        """Show/hide cards based on prompt text match."""
-        needle = text.strip().lower()
-        visible = 0
-        for card in self._cards:
-            match = not needle or needle in card.frame_result.prompt.lower()
-            card.setVisible(match)
-            if match:
-                visible += 1
-        self._counter_label.setText(
-            self.tr("%1 frames").replace("%1", str(visible))
-        )
+    def _apply_filter(self, _text: str = "") -> None:
+        """Show/hide cards based on prompt text match + starred filter."""
+        self._apply_visibility()

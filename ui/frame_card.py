@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QPixmap
-from PySide6.QtWidgets import QFrame, QGraphicsDropShadowEffect, QLabel, QVBoxLayout
+from PySide6.QtWidgets import QFrame, QGraphicsDropShadowEffect, QLabel, QPushButton, QVBoxLayout
 
 from core.models import FrameResult
 
@@ -17,13 +17,15 @@ class FrameCard(QFrame):
     THUMB_W = 196
     THUMB_H = 110
 
-    selected = Signal(object)       # FrameResult
-    double_clicked = Signal(object)  # FrameResult
+    selected = Signal(object)            # FrameResult
+    double_clicked = Signal(object)      # FrameResult
+    toggled_favorite = Signal(object, bool)  # (FrameResult, is_favorite)
 
     def __init__(self, frame_result: FrameResult, parent=None) -> None:
         super().__init__(parent)
         self._result = frame_result
         self._is_selected = False
+        self._is_favorite = False
 
         self.setObjectName("frame_card")
         self.setFixedSize(self.CARD_W, self.CARD_H)
@@ -75,6 +77,16 @@ class FrameCard(QFrame):
         self._ts_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom)
         layout.addWidget(self._ts_label)
 
+        # Star/favorite button — absolute position top-right
+        self._star_btn = QPushButton("☆", self)
+        self._star_btn.setObjectName("star_btn")
+        self._star_btn.setCheckable(True)
+        self._star_btn.setFixedSize(22, 22)
+        self._star_btn.move(self.CARD_W - 26, 5)
+        self._star_btn.setToolTip("Favorite")
+        self._star_btn.toggled.connect(self._on_star_toggled)
+        self._star_btn.raise_()
+
     # ------------------------------------------------------------------
     def _update_selection_style(self) -> None:
         self.setProperty("selected", "true" if self._is_selected else "false")
@@ -84,6 +96,11 @@ class FrameCard(QFrame):
     def set_selected(self, selected: bool) -> None:
         self._is_selected = selected
         self._update_selection_style()
+
+    def _on_star_toggled(self, checked: bool) -> None:
+        self._is_favorite = checked
+        self._star_btn.setText("⭐" if checked else "☆")
+        self.toggled_favorite.emit(self._result, checked)
 
     def mousePressEvent(self, event) -> None:
         self.selected.emit(self._result)
@@ -96,3 +113,7 @@ class FrameCard(QFrame):
     @property
     def frame_result(self) -> FrameResult:
         return self._result
+
+    @property
+    def is_favorite(self) -> bool:
+        return self._is_favorite

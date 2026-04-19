@@ -111,5 +111,24 @@ class AppSettings:
     def set_auto_open_output(self, value: bool) -> None:
         self._qs.setValue("auto_open_output", value)
 
+    # --- Recent URLs (last 10) ---
+    def get_recent_urls(self) -> list[str]:
+        val = self._qs.value("recent_urls", [], type=list)
+        return val if isinstance(val, list) else []
+
+    def add_recent_url(self, url: str) -> None:
+        """Prepend url to recent list, keeping at most 10 entries."""
+        urls = self.get_recent_urls()
+        urls = [u for u in urls if u != url]
+        urls.insert(0, url)
+        self._qs.setValue("recent_urls", urls[:10])
+
+    # --- Always on top ---
+    def get_always_on_top(self) -> bool:
+        return self._qs.value("always_on_top", False, type=bool)
+
+    def set_always_on_top(self, value: bool) -> None:
+        self._qs.setValue("always_on_top", value)
+
     def sync(self) -> None:
         self._qs.sync()

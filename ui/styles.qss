@@ -202,6 +202,38 @@ QSpinBox::up-button:hover, QSpinBox::down-button:hover {
     background: #45475a;
 }
 
+/* ── QDoubleSpinBox (mirrors QSpinBox) ─────────── */
+QDoubleSpinBox {
+    background-color: #181825;
+    color: #cdd6f4;
+    border: 1px solid #45475a;
+    border-radius: 6px;
+    padding: 5px 10px;
+    selection-background-color: #45475a;
+}
+
+QDoubleSpinBox:hover {
+    border-color: #585b70;
+    background-color: #1e1e2e;
+}
+
+QDoubleSpinBox:focus {
+    border: 1.5px solid #89b4fa;
+    background-color: #1e1e2e;
+    outline: none;
+}
+
+QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {
+    background: #313244;
+    border: none;
+    width: 18px;
+    border-radius: 3px;
+}
+
+QDoubleSpinBox::up-button:hover, QDoubleSpinBox::down-button:hover {
+    background: #45475a;
+}
+
 /* ── ComboBox ────────────────────────────────── */
 QComboBox {
     background-color: #181825;
@@ -456,6 +488,42 @@ QFrame#frame_card:hover {
 QFrame#frame_card[selected="true"] {
     border: 2px solid #89b4fa;
     background-color: #1e2a3e;
+}
+
+/* ── Star / Favorite button ──────────────────── */
+QPushButton#star_btn {
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    color: #585b70;
+    padding: 0;
+    min-height: 22px;
+    min-width: 22px;
+}
+
+QPushButton#star_btn:hover {
+    color: #f9e2af;
+    background: rgba(249, 226, 175, 0.12);
+}
+
+QPushButton#star_btn:checked {
+    color: #f9e2af;
+}
+
+/* ── Toast widget ────────────────────────────── */
+QLabel#toast_widget {
+    border-radius: 8px;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+/* ── Gallery empty state ─────────────────────── */
+QLabel.gallery-empty-label {
+    color: #45475a;
+    font-size: 14px;
+    background: transparent;
 }
 
 /* ── Tool Tips ───────────────────────────────── */
