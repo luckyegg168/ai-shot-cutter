@@ -10,12 +10,13 @@ graph TD
 
     subgraph UI["🖥️ UI 層（ui/）"]
         MW["main_window.py\nMainWindow(QMainWindow)"]
-        IP["input_panel.py\nInputPanel(QWidget)"]
-        GW["gallery_widget.py\nGalleryWidget(QScrollArea)"]
-        FC["frame_card.py\nFrameCard(QFrame)"]
-        PP["prompt_panel.py\nPromptPanel(QWidget)"]
+        IP["input_panel.py\nInputPanel(QWidget)\n+ clipboard banner\n+ recent URLs combo"]
+        GW["gallery_widget.py\nGalleryWidget(QScrollArea)\n+ sort combo\n+ starred filter\n+ empty state"]
+        FC["frame_card.py\nFrameCard(QFrame)\n+ star/favorite button"]
+        PP["prompt_panel.py\nPromptPanel(QWidget)\n+ char/word counter"]
         LP["log_panel.py\nLogPanel(QWidget)"]
-        QSS["styles.qss\n深色主題"]
+        QSS["styles.qss\n深色主題\n+ QDoubleSpinBox\n+ star_btn\n+ toast_widget"]
+        TOAST["toast.py\nToast(QLabel)\n自動淡出通知"]
     end
 
     subgraph Workers["⚙️ Worker 層（workers/）"]
@@ -26,13 +27,13 @@ graph TD
         PL["pipeline.py\nPipeline.run()"]
         DL["downloader.py\ndownload_video()"]
         EX["extractor.py\nextract_frames()"]
-        VI["vision.py\nanalyze_frame()"]
+        VI["vision.py\nanalyze_frame()\n+ character/landscape\n+ product/architecture\n  prompt types"]
         MD["models.py\nJobConfig / FrameResult\nJobResult / Exceptions"]
     end
 
     subgraph Utils["🛠️ 工具層（utils/）"]
         FU["file_utils.py\ncreate_output_dir\nwrite_results_json\nwrite_summary_md"]
-        ST["settings.py\nAppSettings(QSettings)"]
+        ST["settings.py\nAppSettings(QSettings)\n+ get/add_recent_urls()\n+ get/set_always_on_top()"]
     end
 
     subgraph External["🌐 外部依賴"]
@@ -50,6 +51,7 @@ graph TD
     MW --> GW
     MW --> PP
     MW --> LP
+    MW --> TOAST
     GW --> FC
     MW --> QSS
 
@@ -226,18 +228,19 @@ ai-shot-cutter/
 │
 ├── ui/                      ← 介面元件
 │   ├── __init__.py
-│   ├── styles.qss           ← 深色主題樣式表
-│   ├── input_panel.py       ← 表單輸入面板
-│   ├── frame_card.py        ← 縮圖卡片
-│   ├── gallery_widget.py    ← 3欄縮圖畫廊
-│   ├── prompt_panel.py      ← Prompt 預覽面板
+│   ├── styles.qss           ← 深色主題樣式表（+ QDoubleSpinBox, star_btn, toast）
+│   ├── input_panel.py       ← 表單輸入面板（+ clipboard banner, recent URLs）
+│   ├── frame_card.py        ← 縮圖卡片（+ 星號收藏按鈕）
+│   ├── gallery_widget.py    ← 3欄縮圖畫廊（+ sort, starred filter, empty state）
+│   ├── prompt_panel.py      ← Prompt 預覽面板（+ 字元/字數計數器）
 │   ├── log_panel.py         ← 進度列 + 日誌
-│   └── main_window.py       ← 主視窗（3面板佈局）
+│   ├── toast.py             ← Toast 通知 overlay（v1.3 新增）
+│   └── main_window.py       ← 主視窗（+ clipboard detect, always-on-top, shortcuts help）
 │
 ├── utils/                   ← 無狀態工具函式
 │   ├── __init__.py
 │   ├── file_utils.py        ← 輸出目錄 / JSON / MD
-│   └── settings.py          ← QSettings 包裝
+│   └── settings.py          ← QSettings 包裝（+ recent_urls, always_on_top）
 │
 ├── tests/                   ← pytest 測試套件
 │   ├── __init__.py
@@ -250,3 +253,14 @@ ai-shot-cutter/
 ├── assets/                  ← 靜態資源（圖示等）
 └── output/                  ← 預設輸出根目錄（.gitignore）
 ```
+
+---
+
+## 變更歷史
+
+| 版本 | 日期 | 內容 | 影響範圍 |
+|------|------|------|----------|
+| v1.0 | 2025-01-01 | 初始架構圖建立 | 全部 |
+| v1.1 | 2025-01-01 | v1.1 修復與 5 個新功能 (F-01～F-05) | ui/, core/ |
+| v1.2 | 2025-01-01 | v1.2 程式碼品質 + 10 個新功能 (F-06～F-15) | core/, ui/, utils/ |
+| v1.3 | 2025-07-18 | v1.3 UI 整體優化 + 10 個新功能 (F-16～F-25) | ui/toast.py(新增), core/vision.py, utils/settings.py, ui/frame_card.py, ui/gallery_widget.py, ui/prompt_panel.py, ui/input_panel.py, ui/main_window.py, ui/styles.qss |

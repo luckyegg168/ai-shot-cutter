@@ -288,3 +288,34 @@ output/
 ### Verification
 - [x] `ruff check .` — All checks passed (0 errors)
 - [x] `pytest tests/ -x` — 53/53 tests passed
+
+---
+
+## Phase 5 — v1.3 UI Overhaul + 10 New Features
+
+### UI Improvements
+- [x] Tab icons with emoji prefix (⚙ Job Settings / 🔧 Tools / ⚙ Settings)
+- [x] Gallery empty state label ("🎞 No frames yet")
+- [x] Gallery jump-to-frame spinbox (#N)
+- [x] QDoubleSpinBox styles added to `styles.qss`
+
+### New Features (10)
+- [x] **F-16** Toast Notifications — `ui/toast.py` `Toast(QLabel)` overlay; info/warning/error levels; auto-fade via `QPropertyAnimation`
+- [x] **F-17** Frame Favorites — ⭐ star button on each `FrameCard`; `toggled_favorite` signal; `is_favorite` property; starred-only filter checkbox in gallery toolbar
+- [x] **F-18** Clipboard URL Auto-detect — `changeEvent` on `MainWindow` detects YouTube URLs in clipboard on window activate; shows dismissable banner in `InputPanel`
+- [x] **F-19** Prompt Char/Word Counter — `_counter_label` below `_prompt_edit` in `PromptPanel`; updates on `textChanged`
+- [x] **F-20** Keyboard Shortcuts Help — Ctrl+/ shortcut + Help menu item; `_show_shortcuts_help()` dialog listing all shortcuts
+- [x] **F-21** Gallery Sort — `_sort_combo` in gallery toolbar; options: Frame Order / Timestamp ▲ / Timestamp ▼ / Prompt Length; `_apply_sort()` sorts `_cards` in-place + `_relayout()`
+- [x] **F-22** Recent URLs — `QComboBox` above URL textarea; `AppSettings.get_recent_urls()` / `add_recent_url()`; last 10, dedup; populated on `_load_settings()`
+- [x] **F-23** Extended Prompt Types — 4 new types in `core/vision.py`: character, landscape, product, architecture; 4 new `addItem()` calls in `InputPanel._prompt_combo`
+- [x] **F-24** Session Summary Dialog — after successful job: frame count, elapsed time, avg/max prompt length; `[Open Output Folder]` + `[Close]` buttons
+- [x] **F-25** Always on Top — View → Always on Top checkable QAction; `setWindowFlag(WindowStaysOnTopHint)`; persisted via `AppSettings.get/set_always_on_top()`
+
+### Settings additions
+- [x] `AppSettings.get_recent_urls()` / `add_recent_url()` — capped at 10, dedup
+- [x] `AppSettings.get_always_on_top()` / `set_always_on_top()` — bool, default False
+
+### Verification
+- [x] `ruff check ui/ utils/settings.py` — All checks passed (0 errors)
+- [x] `pytest tests/ -x` — 53/53 tests passed
+- [x] `git commit` — feat(ui): v1.3 — 10 new features + UI improvements
