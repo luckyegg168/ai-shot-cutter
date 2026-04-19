@@ -9,6 +9,32 @@ _ROOT = Path(__file__).parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
+# ── Startup dependency check ─────────────────────────────────
+_MISSING: list[str] = []
+for _pkg, _import in [
+    ("yt-dlp", "yt_dlp"),
+    ("openai", "openai"),
+    ("tqdm", "tqdm"),
+    ("PySide6", "PySide6"),
+]:
+    try:
+        __import__(_import)
+    except ImportError:
+        _MISSING.append(_pkg)
+
+if _MISSING:
+    print("=" * 60, file=sys.stderr)
+    print("ERROR: Missing required packages:", file=sys.stderr)
+    for _p in _MISSING:
+        print(f"  * {_p}", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("Run the launcher instead of plain python:", file=sys.stderr)
+    print("  Windows:      run.bat", file=sys.stderr)
+    print("  macOS/Linux:  ./run.sh", file=sys.stderr)
+    print("  Or manually:  uv run python main.py", file=sys.stderr)
+    print("=" * 60, file=sys.stderr)
+    sys.exit(1)
+
 
 def main() -> None:
     from PySide6.QtWidgets import QApplication

@@ -80,10 +80,10 @@ echo.
 echo ============================================================
 echo   Setup complete!
 echo.
-echo   Activate the environment:
-echo     .venv\Scripts\activate
-echo.
 echo   Run the app:
+echo     run.bat         (double-click or from terminal)
+echo.
+echo   Or manually:
 echo     uv run python main.py
 echo.
 echo   Run tests:
