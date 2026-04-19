@@ -12,7 +12,6 @@ from PySide6.QtWidgets import (
     QApplication,
     QMainWindow,
     QMessageBox,
-    QSplitter,
     QStatusBar,
     QWidget,
 )
@@ -65,85 +64,77 @@ class MainWindow(QMainWindow):
     # UI construction
     # ------------------------------------------------------------------
     def _setup_ui(self) -> None:
-        from PySide6.QtWidgets import QTabWidget, QVBoxLayout
+        from PySide6.QtWidgets import QFrame, QTabWidget, QVBoxLayout
 
         central = QWidget()
         self.setCentralWidget(central)
 
-        root_layout = QVBoxLayout(central)
-        root_layout.setContentsMargins(0, 0, 0, 0)
-        root_layout.setSpacing(0)
+        root = QVBoxLayout(central)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
-        # ── Main horizontal splitter: left tabs | right results ───────
-        main_splitter = QSplitter(Qt.Orientation.Horizontal)
-
-        # ── Left: QTabWidget ─────────────────────────────────────────
-        self._tabs = QTabWidget()
-        self._tabs.setMinimumWidth(380)
-        self._tabs.setMaximumWidth(560)
-        self._tabs.setDocumentMode(True)
-
+        # ── Top: Job controls bar (always visible) ───────────────────
         self._input_panel = InputPanel(self._settings)
-        self._tabs.addTab(self._input_panel, "⚙  " + self.tr("Job Settings"))
+        root.addWidget(self._input_panel)
 
-        main_splitter.addWidget(self._tabs)
+        # Thin separator
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setObjectName("main_separator")
+        root.addWidget(sep)
 
-        # ── Right: vertical splitter (gallery+prompt | log) ──────────
-        right_splitter = QSplitter(Qt.Orientation.Vertical)
+        # ── Middle: full-width tabs ───────────────────────────────────
+        self._tabs = QTabWidget()
+        self._tabs.setDocumentMode(True)
+        self._tabs.setTabPosition(QTabWidget.TabPosition.North)
 
-        # Gallery | Prompt (horizontal)
-        mid_splitter = QSplitter(Qt.Orientation.Horizontal)
+        # Tab 0 — Gallery
         self._gallery = GalleryWidget()
+        self._tabs.addTab(self._gallery, "🖼  " + self.tr("Gallery"))
+
+        # Tab 1 — Prompts
         self._prompt_panel = PromptPanel()
-        mid_splitter.addWidget(self._gallery)
-        mid_splitter.addWidget(self._prompt_panel)
-        mid_splitter.setStretchFactor(0, 2)
-        mid_splitter.setStretchFactor(1, 1)
-        right_splitter.addWidget(mid_splitter)
+        self._tabs.addTab(self._prompt_panel, "💬  " + self.tr("Prompts"))
 
-        # Log
-        self._log_panel = LogPanel()
-
-        # ── Tools tab (must be after _log_panel and _gallery) ────────
+        # Tab 2 — Tools (must be after _gallery is created)
         self._tools_panel = ToolsPanel()
         self._tools_panel.set_all_frames_getter(lambda: self._gallery.get_all_frames())
-        self._tools_panel.set_logger(self._log_panel.log_info)
         self._tabs.addTab(self._tools_panel, "🔧  " + self.tr("Tools"))
 
-        # ── Settings tab ─────────────────────────────────────────────
+        # Tab 3 — Settings
         self._settings_panel = SettingsPanel(self._settings)
         self._tabs.addTab(self._settings_panel, "⚙  " + self.tr("Settings"))
 
-        # Wire settings panel to input panel for validation & job creation
-        self._input_panel.set_settings_panel(self._settings_panel)
-        right_splitter.addWidget(self._log_panel)
-        right_splitter.setStretchFactor(0, 1)
-        right_splitter.setStretchFactor(1, 0)
-        right_splitter.setSizes([600, 180])
+        root.addWidget(self._tabs, 1)
 
-        main_splitter.addWidget(right_splitter)
-        main_splitter.setStretchFactor(0, 0)
-        main_splitter.setStretchFactor(1, 1)
-        main_splitter.setSizes([440, 760])
-
-        root_layout.addWidget(main_splitter)
+        # ── Bottom: Log panel ─────────────────────────────────────────
+        self._log_panel = LogPanel()
+        self._log_panel.setMinimumHeight(90)
+        self._log_panel.setMaximumHeight(160)
+        root.addWidget(self._log_panel)
 
         # Status bar
         self.setStatusBar(QStatusBar())
         self.statusBar().showMessage(self.tr("Ready"))
 
+        # Wire settings panel into input panel
+        self._input_panel.set_settings_panel(self._settings_panel)
+
         # Connect signals
         self._input_panel.job_requested.connect(self._on_job_requested)
         self._input_panel.stop_button.clicked.connect(self._on_stop_requested)
-        self._gallery.card_selected.connect(self._prompt_panel.show_frame)
+        self._gallery.card_selected.connect(self._on_card_selected)
         self._gallery.card_double_clicked.connect(self._on_frame_zoom)
         self._prompt_panel.regenerate_requested.connect(self._on_regenerate)
-
-        # Wire settings: live theme toggle
         self._settings_panel.theme_changed.connect(self._apply_theme_live)
-
-        # Wire batch actions: give prompt_panel access to gallery frames
         self._prompt_panel.set_all_frames_getter(self._gallery.get_all_frames)
+        self._tools_panel.set_logger(self._log_panel.log_info)
+
+    def _on_card_selected(self, frame) -> None:
+        """Show prompt and auto-switch to Prompts tab on first click."""
+        self._prompt_panel.show_frame(frame)
+        if self._tabs.currentIndex() == 0:  # if on Gallery, switch to Prompts
+            self._tabs.setCurrentIndex(1)
 
     # Feature: keyboard shortcuts (including frame navigation)
     def _setup_shortcuts(self) -> None:
@@ -234,7 +225,10 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(message)
 
     def _on_frame_ready(self, frame: FrameResult) -> None:
+        first_frame = len(self._gallery._cards) == 0
         self._gallery.add_frame_card(frame)
+        if first_frame:
+            self._tabs.setCurrentIndex(0)  # Auto-switch to Gallery on first frame
         self._log_panel.log_info(
             self.tr("Frame %1 | %2 | %3…").replace("%1", str(frame.index)).replace("%2", frame.timestamp_label).replace("%3", frame.prompt[:60])
         )
@@ -558,8 +552,11 @@ class MainWindow(QMainWindow):
         layout.addWidget(btns)
         dlg.exec()
 
-    def closeEvent(self, event) -> None:
+    def closeEvent(self, event) -> None:  # noqa: N802
         if self._worker and self._worker.isRunning():
-            self._worker.stop()
+            self._worker.request_stop()
+            if not self._worker.wait(4000):   # 4-second grace period
+                self._worker.terminate()
+                self._worker.wait(1000)
         self._settings.sync()
-        super().closeEvent(event)
+        event.accept()

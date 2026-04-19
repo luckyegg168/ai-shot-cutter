@@ -11,7 +11,6 @@ from PySide6.QtGui import QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
-    QGridLayout,
     QHBoxLayout,
     QLabel,
     QPlainTextEdit,
@@ -68,25 +67,25 @@ class InputPanel(QWidget):
     # ------------------------------------------------------------------
     def _setup_ui(self) -> None:
         root = QVBoxLayout(self)
-        root.setContentsMargins(20, 20, 20, 16)
-        root.setSpacing(0)
+        root.setContentsMargins(16, 8, 16, 8)
+        root.setSpacing(6)
 
         # ── Clipboard banner (hidden by default) ──────────────────────
         self._clipboard_banner = QFrame()
         self._clipboard_banner.setObjectName("clipboard_banner")
         self._clipboard_banner.setStyleSheet(
             "#clipboard_banner { background: #1e2030; border: 1px solid #89b4fa;"
-            " border-radius: 6px; padding: 4px; }"
+            " border-radius: 6px; }"
         )
         banner_row = QHBoxLayout(self._clipboard_banner)
-        banner_row.setContentsMargins(10, 6, 10, 6)
+        banner_row.setContentsMargins(10, 4, 10, 4)
         self._banner_label = QLabel()
         self._banner_label.setStyleSheet("color: #89b4fa; font-size: 12px;")
         self._banner_use_btn = QPushButton(self.tr("Use URL"))
-        self._banner_use_btn.setFixedHeight(26)
+        self._banner_use_btn.setFixedHeight(24)
         self._banner_use_btn.setObjectName("btn_start")
         self._banner_dismiss_btn = QPushButton("✕")
-        self._banner_dismiss_btn.setFixedSize(26, 26)
+        self._banner_dismiss_btn.setFixedSize(24, 24)
         banner_row.addWidget(self._banner_label)
         banner_row.addStretch()
         banner_row.addWidget(self._banner_use_btn)
@@ -94,115 +93,109 @@ class InputPanel(QWidget):
         banner_row.addWidget(self._banner_dismiss_btn)
         self._clipboard_banner.setVisible(False)
         root.addWidget(self._clipboard_banner)
-        root.addSpacing(8)
 
-        grid = QGridLayout()
-        grid.setHorizontalSpacing(14)
-        grid.setVerticalSpacing(14)
-        grid.setColumnMinimumWidth(0, _LBL_W)
-        grid.setColumnMinimumWidth(2, _LBL_W)
-        grid.setColumnStretch(1, 1)
-        grid.setColumnStretch(3, 1)
+        # ── URL row ────────────────────────────────────────────────────
+        url_row = QHBoxLayout()
+        url_row.setSpacing(10)
 
-        lbl = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        url_lbl = self._lbl(self.tr("YouTube URL"))
+        url_lbl.setFixedWidth(100)
+        url_lbl.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop
+        )
+        url_lbl.setStyleSheet("font-weight: 600; font-size: 13px; padding-top: 4px;")
+        url_row.addWidget(url_lbl)
 
-        # Row 0 ── Recent URLs dropdown + YouTube URL (multi-line for batch)
-        grid.addWidget(self._lbl("YouTube URL"), 0, 0, lbl)
         url_col = QVBoxLayout()
-        url_col.setSpacing(4)
-        # Recent URLs dropdown
+        url_col.setSpacing(3)
         self._recent_combo = QComboBox()
-        self._recent_combo.setFixedHeight(28)
+        self._recent_combo.setFixedHeight(26)
         self._recent_combo.setToolTip(self.tr("Recent URLs"))
         self._recent_combo.addItem(self.tr("— Recent URLs —"), "")
         url_col.addWidget(self._recent_combo)
-        # Main URL text area
+
         self._url_edit = QPlainTextEdit()
-        self._url_edit.setFixedHeight(72)
+        self._url_edit.setFixedHeight(60)
         self._url_edit.setPlaceholderText(
             "https://www.youtube.com/watch?v=…\n"
             "(one URL per line for batch processing)"
         )
         self._url_edit.setToolTip(self.tr("YouTube video URL"))
         url_col.addWidget(self._url_edit)
-        url_widget = QWidget()
-        url_widget.setLayout(url_col)
-        grid.addWidget(url_widget, 0, 1, 1, 3)
+        url_row.addLayout(url_col)
+        root.addLayout(url_row)
 
-        # Row 1 ── Interval  |  Prompt Type
-        grid.addWidget(self._lbl(self.tr("Interval (sec)")), 1, 0, lbl)
+        # ── Params + Buttons row ───────────────────────────────────────
+        params = QHBoxLayout()
+        params.setSpacing(10)
+
+        # Interval
+        params.addWidget(self._lbl(self.tr("Interval")))
         self._interval_spin = QSpinBox()
-        self._interval_spin.setFixedHeight(_FIELD_H)
+        self._interval_spin.setFixedSize(72, _FIELD_H)
         self._interval_spin.setRange(1, 300)
         self._interval_spin.setSuffix(" s")
         self._interval_spin.setToolTip(self.tr("Time between captured frames (seconds)"))
-        grid.addWidget(self._interval_spin, 1, 1)
+        params.addWidget(self._interval_spin)
 
-        grid.addWidget(self._lbl(self.tr("Prompt Type")), 1, 2, lbl)
+        params.addSpacing(6)
+
+        # Prompt Type
+        params.addWidget(self._lbl(self.tr("Prompt Type")))
         self._prompt_combo = QComboBox()
         self._prompt_combo.setFixedHeight(_FIELD_H)
+        self._prompt_combo.setMinimumWidth(130)
         self._prompt_combo.addItem(self.tr("Image Prompt"), "image")
         self._prompt_combo.addItem(self.tr("Video Prompt"), "video")
         self._prompt_combo.addItem(self.tr("Character"), "character")
         self._prompt_combo.addItem(self.tr("Landscape"), "landscape")
         self._prompt_combo.addItem(self.tr("Product"), "product")
         self._prompt_combo.addItem(self.tr("Architecture"), "architecture")
-        self._prompt_combo.setMinimumWidth(140)
-        grid.addWidget(self._prompt_combo, 1, 3)
+        params.addWidget(self._prompt_combo)
 
-        # Row 2 ── Max Frames
-        grid.addWidget(self._lbl(self.tr("Max Frames (0=unlimited)")), 2, 0, lbl)
+        params.addSpacing(6)
+
+        # Max Frames
+        params.addWidget(self._lbl(self.tr("Max Frames")))
         self._max_frames_spin = QSpinBox()
-        self._max_frames_spin.setFixedHeight(_FIELD_H)
+        self._max_frames_spin.setFixedSize(90, _FIELD_H)
         self._max_frames_spin.setRange(0, 500)
         self._max_frames_spin.setSpecialValueText(self.tr("Unlimited"))
         self._max_frames_spin.setToolTip(self.tr("0 = unlimited"))
-        grid.addWidget(self._max_frames_spin, 2, 1)
+        params.addWidget(self._max_frames_spin)
 
-        root.addLayout(grid)
-        root.addSpacing(20)
+        params.addStretch()
 
-        # ── Divider
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setFrameShadow(QFrame.Shadow.Sunken)
-        root.addWidget(line)
-        root.addSpacing(12)
-
-        # ── Buttons row
-        btn_row = QHBoxLayout()
-        btn_row.setSpacing(10)
-
-        self._btn_start = QPushButton(self.tr("Start"))
+        # Buttons
+        self._btn_start = QPushButton("▶  " + self.tr("Start"))
         self._btn_start.setObjectName("btn_start")
-        self._btn_start.setFixedHeight(38)
+        self._btn_start.setFixedHeight(_FIELD_H)
+        self._btn_start.setMinimumWidth(110)
         self._btn_start.setToolTip("Ctrl+Enter")
-        self._btn_start.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._btn_start.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
-        self._btn_stop = QPushButton(self.tr("Stop"))
+        self._btn_stop = QPushButton("■  " + self.tr("Stop"))
         self._btn_stop.setObjectName("btn_stop")
-        self._btn_stop.setFixedHeight(38)
+        self._btn_stop.setFixedHeight(_FIELD_H)
+        self._btn_stop.setMinimumWidth(90)
         self._btn_stop.setEnabled(False)
         self._btn_stop.setToolTip("Esc")
-        self._btn_stop.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._btn_stop.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
-        self._btn_open = QPushButton(self.tr("Open Output"))
-        self._btn_open.setFixedHeight(38)
+        self._btn_open = QPushButton("📂  " + self.tr("Open Output"))
+        self._btn_open.setFixedHeight(_FIELD_H)
 
-        btn_row.addWidget(self._btn_start)
-        btn_row.addWidget(self._btn_stop)
-        btn_row.addStretch()
-        btn_row.addWidget(self._btn_open)
-        root.addLayout(btn_row)
-        root.addSpacing(8)
+        params.addWidget(self._btn_start)
+        params.addWidget(self._btn_stop)
+        params.addWidget(self._btn_open)
+        root.addLayout(params)
 
-        # ── Validation message
+        # ── Validation message ─────────────────────────────────────────
         self._error_label = QLabel()
         self._error_label.setStyleSheet(
             "color: #f38ba8; font-size: 11px; background: transparent;"
         )
         root.addWidget(self._error_label)
-        root.addStretch()
 
     # ------------------------------------------------------------------
     # Helpers

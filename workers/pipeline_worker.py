@@ -26,6 +26,10 @@ class PipelineWorker(QThread):
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+    def request_stop(self) -> None:
+        """Signal cancellation without blocking (safe to call from main thread)."""
+        self._stop_event.set()
+
     def stop(self) -> None:
         """Request cancellation; blocks until the thread finishes."""
         self._stop_event.set()
